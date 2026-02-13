@@ -45,7 +45,8 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterForm) => {
     try {
       setError('');
-      await authApi.register(data);
+      const payload = { ...data, orgName: data.orgName?.trim() || undefined };
+      await authApi.register(payload);
       setSuccess(true);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Registration failed. Please try again.');

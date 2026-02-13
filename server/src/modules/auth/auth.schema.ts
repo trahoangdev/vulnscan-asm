@@ -15,11 +15,10 @@ export const registerSchema = z.object({
     .string()
     .min(VALIDATION.NAME_MIN_LENGTH)
     .max(VALIDATION.NAME_MAX_LENGTH),
-  orgName: z
-    .string()
-    .min(2)
-    .max(VALIDATION.ORG_NAME_MAX_LENGTH)
-    .optional(),
+  orgName: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+    z.string().min(2).max(VALIDATION.ORG_NAME_MAX_LENGTH).optional(),
+  ),
 });
 
 export const loginSchema = z.object({
