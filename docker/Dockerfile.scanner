@@ -1,0 +1,23 @@
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+
+# Install system dependencies (nmap, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nmap \
+    dnsutils \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY scanner/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy scanner code
+COPY scanner/ ./
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash scanner
+USER scanner
+
+CMD ["celery", "-A", "tasks", "worker", "--loglevel=info", "--concurrency=3"]
