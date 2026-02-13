@@ -147,7 +147,7 @@ class WebCrawler(BaseModule):
                                 Finding(
                                     title=f"Sensitive File Exposed: {path}",
                                     severity=Severity.HIGH,
-                                    category=VulnCategory.INFORMATION_DISCLOSURE,
+                                    category=VulnCategory.SENSITIVE_FILE,
                                     description=f"Sensitive file accessible at {url}",
                                     solution=f"Restrict access to {path} via web server configuration.",
                                     affected_component=url,
@@ -207,7 +207,7 @@ class WebCrawler(BaseModule):
                     Finding(
                         title=title,
                         severity=severity,
-                        category=VulnCategory.WEB,
+                        category=VulnCategory.SECURITY_HEADERS,
                         description=f"The security header '{header}' is missing on {url}.",
                         solution=solution,
                         affected_component=url,
@@ -221,7 +221,7 @@ class WebCrawler(BaseModule):
                 Finding(
                     title="Server Version Disclosure",
                     severity=Severity.LOW,
-                    category=VulnCategory.INFORMATION_DISCLOSURE,
+                    category=VulnCategory.INFO_DISCLOSURE,
                     description=f"Server header reveals version: {server}",
                     solution="Configure the web server to hide version information.",
                     affected_component=url,

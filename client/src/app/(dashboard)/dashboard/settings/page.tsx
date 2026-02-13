@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth';
-import { authApi } from '@/services/auth';
+import { usersApi } from '@/services/api';
 import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
@@ -35,7 +35,14 @@ export default function SettingsPage() {
   const handleProfileUpdate = async () => {
     try {
       setProfileLoading(true);
-      const res = await authApi.getMe();
+      const res = await usersApi.updateMe({ name });
+      // Update the local auth store with new user data
+      if (res.data) {
+        useAuthStore.getState().setUser({
+          ...user!,
+          name: res.data.name || name,
+        });
+      }
       toast.success('Profile updated');
     } catch (err: any) {
       toast.error(err.response?.data?.error?.message || 'Failed to update profile');
@@ -55,7 +62,7 @@ export default function SettingsPage() {
     }
     try {
       setPasswordLoading(true);
-      // Call API to change password
+      await usersApi.changePassword({ currentPassword, newPassword });
       toast.success('Password changed successfully');
       setCurrentPassword('');
       setNewPassword('');

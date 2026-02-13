@@ -2,6 +2,9 @@ import { Worker, Job } from 'bullmq';
 import { redis } from '@config/redis';
 import { prisma } from '@config/database';
 import { logger } from '@utils/logger';
+import { sendEmail, securityAlertEmailHtml } from '@utils/email';
+import { emitScanCompleted, emitScanFailed, emitScanProgress, emitNotification } from '../socket';
+import { env } from '@config/env';
 
 interface ScanJobData {
   scanId: string;
@@ -9,6 +12,48 @@ interface ScanJobData {
   targetValue: string;
   profile: string;
   orgId: string;
+}
+
+/**
+ * Maps scanner VulnCategory values to Prisma enum values.
+ * Acts as a safety-net for any legacy or unmapped categories.
+ */
+const CATEGORY_MAP: Record<string, string> = {
+  // Direct matches (Prisma enum values)
+  SQL_INJECTION: 'SQL_INJECTION',
+  XSS_REFLECTED: 'XSS_REFLECTED',
+  XSS_STORED: 'XSS_STORED',
+  SSRF: 'SSRF',
+  LFI: 'LFI',
+  RFI: 'RFI',
+  COMMAND_INJECTION: 'COMMAND_INJECTION',
+  PATH_TRAVERSAL: 'PATH_TRAVERSAL',
+  OPEN_REDIRECT: 'OPEN_REDIRECT',
+  CSRF: 'CSRF',
+  IDOR: 'IDOR',
+  CORS_MISCONFIG: 'CORS_MISCONFIG',
+  SECURITY_HEADERS: 'SECURITY_HEADERS',
+  SSL_TLS: 'SSL_TLS',
+  CERT_ISSUE: 'CERT_ISSUE',
+  INFO_DISCLOSURE: 'INFO_DISCLOSURE',
+  DIRECTORY_LISTING: 'DIRECTORY_LISTING',
+  SENSITIVE_FILE: 'SENSITIVE_FILE',
+  OUTDATED_SOFTWARE: 'OUTDATED_SOFTWARE',
+  DEFAULT_CREDENTIALS: 'DEFAULT_CREDENTIALS',
+  EMAIL_SECURITY: 'EMAIL_SECURITY',
+  COOKIE_SECURITY: 'COOKIE_SECURITY',
+  HTTP_METHODS: 'HTTP_METHODS',
+  OTHER: 'OTHER',
+  // Legacy fallback mappings (in case old scanner sends broad categories)
+  WEB: 'OTHER',
+  NETWORK: 'OTHER',
+  DNS: 'OTHER',
+  CONFIGURATION: 'SECURITY_HEADERS',
+  INFORMATION_DISCLOSURE: 'INFO_DISCLOSURE',
+};
+
+function mapCategory(category: string): string {
+  return CATEGORY_MAP[category] || 'OTHER';
 }
 
 /**
@@ -110,6 +155,11 @@ async function subscribeScanResults() {
           where: { id: scanId },
           data: { progress: result.progress },
         });
+        emitScanProgress(scanId, {
+          progress: result.progress,
+          currentModule: result.currentModule,
+          message: result.message,
+        });
         return;
       }
 
@@ -151,7 +201,7 @@ async function subscribeScanResults() {
               orgId: scan.orgId,
               title: f.title,
               severity: f.severity,
-              category: f.category,
+              category: mapCategory(f.category),
               description: f.description,
               solution: f.solution || '',
               cveId: f.cveId,
@@ -189,6 +239,77 @@ async function subscribeScanResults() {
           findings: findings?.length || 0,
         });
 
+        // Emit WebSocket events
+        emitScanCompleted(scanId, {
+          assetsFound: assets?.length || 0,
+          vulnsFound: findings?.length || 0,
+        });
+
+        // Notify users about critical/high severity findings
+        const criticalFindings = (findings || []).filter(
+          (f: any) => f.severity === 'CRITICAL' || f.severity === 'HIGH'
+        );
+
+        if (criticalFindings.length > 0) {
+          try {
+            // Get org members to notify
+            const orgMembers = await prisma.orgMember.findMany({
+              where: { orgId: scan.orgId },
+              include: { user: { select: { id: true, name: true, email: true } } },
+            });
+
+            const targetValue = scan.target?.value || 'Unknown target';
+            const dashboardUrl = `${env.CLIENT_URL}/dashboard/vulnerabilities`;
+
+            for (const member of orgMembers) {
+              // Create in-app notification
+              await prisma.notification.create({
+                data: {
+                  userId: member.user.id,
+                  type: 'SCAN_COMPLETED',
+                  title: `🚨 ${criticalFindings.length} Critical/High findings on ${targetValue}`,
+                  message: `A scan discovered ${criticalFindings.length} critical or high severity vulnerability(s) on ${targetValue}.`,
+                  data: { scanId, targetValue, count: criticalFindings.length },
+                },
+              });
+
+              // Emit real-time notification
+              emitNotification(member.user.id, {
+                type: 'SCAN_COMPLETED',
+                title: `🚨 ${criticalFindings.length} Critical/High findings on ${targetValue}`,
+                message: `Review and remediate these findings as soon as possible.`,
+              });
+
+              // Send email alert
+              try {
+                await sendEmail({
+                  to: member.user.email,
+                  subject: `[${env.APP_NAME}] Security Alert: ${criticalFindings.length} Critical/High findings on ${targetValue}`,
+                  html: securityAlertEmailHtml(
+                    member.user.name,
+                    targetValue,
+                    criticalFindings.slice(0, 10).map((f: any) => ({
+                      title: f.title,
+                      severity: f.severity,
+                      category: mapCategory(f.category),
+                    })),
+                    dashboardUrl,
+                  ),
+                });
+              } catch (emailErr) {
+                log.warn('Failed to send alert email', {
+                  userId: member.user.id,
+                  error: emailErr instanceof Error ? emailErr.message : 'Unknown',
+                });
+              }
+            }
+          } catch (notifyErr) {
+            log.warn('Failed to send notifications', {
+              error: notifyErr instanceof Error ? notifyErr.message : 'Unknown',
+            });
+          }
+        }
+
       } else if (status === 'FAILED') {
         await prisma.scan.update({
           where: { id: scanId },
@@ -198,6 +319,7 @@ async function subscribeScanResults() {
             errorMessage: error || 'Scanner engine error',
           },
         });
+        emitScanFailed(scanId, error || 'Scanner engine error');
         log.error('Scan failed', { error });
       }
 

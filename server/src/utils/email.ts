@@ -87,3 +87,76 @@ export function resetPasswordEmailHtml(name: string, resetUrl: string): string {
     </div>
   `;
 }
+
+export function securityAlertEmailHtml(
+  name: string,
+  target: string,
+  findings: Array<{ title: string; severity: string; category: string }>,
+  dashboardUrl: string,
+): string {
+  const severityColor: Record<string, string> = {
+    CRITICAL: '#ef4444',
+    HIGH: '#f97316',
+    MEDIUM: '#eab308',
+    LOW: '#3b82f6',
+    INFO: '#9ca3af',
+  };
+
+  const findingRows = findings
+    .map(
+      (f) => `
+      <tr>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb;">
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; 
+                       background-color: ${severityColor[f.severity] || '#9ca3af'}; color: white;
+                       font-size: 11px; font-weight: bold; text-transform: uppercase;">
+            ${f.severity}
+          </span>
+        </td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb;">${f.title}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-size: 13px;">
+          ${f.category.replace(/_/g, ' ')}
+        </td>
+      </tr>`,
+    )
+    .join('');
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #dc2626;">🚨 Security Alert — ${env.APP_NAME}</h2>
+      <p>Hi ${name},</p>
+      <p>A scan on <strong>${target}</strong> has discovered 
+         <strong>${findings.length}</strong> critical/high severity finding(s) 
+         that require your attention:</p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+        <thead>
+          <tr style="background-color: #f9fafb;">
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Severity</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Finding</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${findingRows}
+        </tbody>
+      </table>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardUrl}"
+           style="background-color: #2563eb; color: white; padding: 12px 30px; 
+                  text-decoration: none; border-radius: 6px; font-weight: bold;">
+          View Full Report
+        </a>
+      </div>
+
+      <p style="color: #6b7280; font-size: 14px;">
+        We recommend reviewing and remediating these findings as soon as possible.
+      </p>
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+      <p style="color: #9ca3af; font-size: 12px;">
+        © ${new Date().getFullYear()} ${env.APP_NAME}. All rights reserved.
+      </p>
+    </div>
+  `;
+}

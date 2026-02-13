@@ -3,6 +3,10 @@ import { ApiError } from '../../utils/ApiError';
 import { generateVerificationToken } from '../../utils/crypto';
 import { isValidDomain, isValidIp, parsePagination, parseSort } from '../../utils/helpers';
 import { PLAN_LIMITS } from '../../../../shared/constants/index';
+import { logger } from '../../utils/logger';
+import dns from 'dns/promises';
+import https from 'https';
+import http from 'http';
 import type { CreateTargetInput, UpdateTargetInput } from './targets.schema';
 
 export class TargetsService {
@@ -187,19 +191,216 @@ export class TargetsService {
       return { message: 'Target already verified', status: 'VERIFIED' };
     }
 
-    // TODO: Implement actual DNS/HTML/Meta verification logic
-    // For now, mark as pending verification check
+    if (!target.verificationToken) {
+      throw ApiError.badRequest('No verification token found. Please recreate the target.');
+    }
+
+    let verified = false;
+
+    try {
+      switch (method) {
+        case 'DNS_TXT':
+          verified = await this.verifyDnsTxt(target.value, target.verificationToken);
+          break;
+        case 'HTML_FILE':
+          verified = await this.verifyHtmlFile(target.value, target.verificationToken);
+          break;
+        case 'META_TAG':
+          verified = await this.verifyMetaTag(target.value, target.verificationToken);
+          break;
+        default:
+          throw ApiError.badRequest('Invalid verification method');
+      }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.error('Verification check error', { error, targetId, method });
+    }
+
+    if (verified) {
+      await prisma.target.update({
+        where: { id: targetId },
+        data: {
+          verificationStatus: 'VERIFIED',
+          verificationMethod: method as any,
+          verifiedAt: new Date(),
+        },
+      });
+      return { message: 'Domain verified successfully', status: 'VERIFIED' };
+    }
+
     await prisma.target.update({
       where: { id: targetId },
       data: {
+        verificationStatus: 'FAILED',
         verificationMethod: method as any,
       },
     });
 
     return {
-      message: 'Verification check initiated. This may take a few minutes.',
-      status: 'PENDING',
+      message: `Verification failed. Please ensure the ${method === 'DNS_TXT' ? 'DNS TXT record' : method === 'HTML_FILE' ? 'verification file' : 'meta tag'} is correctly set up and try again.`,
+      status: 'FAILED',
     };
+  }
+
+  /**
+   * Verify via DNS TXT record
+   * Checks _vulnscan-verify.<domain> for the verification token
+   */
+  private async verifyDnsTxt(domain: string, token: string): Promise<boolean> {
+    try {
+      const hostname = `_vulnscan-verify.${domain}`;
+      const records = await dns.resolveTxt(hostname);
+      // records is an array of arrays, flatten and check
+      for (const record of records) {
+        const value = record.join('');
+        if (value === token) {
+          return true;
+        }
+      }
+      return false;
+    } catch (error: any) {
+      // ENOTFOUND or ENODATA means the record doesn't exist
+      if (error.code === 'ENOTFOUND' || error.code === 'ENODATA') {
+        return false;
+      }
+      logger.error('DNS TXT verification error', { error: error.message, domain });
+      return false;
+    }
+  }
+
+  /**
+   * Verify via HTML file
+   * Checks https://<domain>/.well-known/vulnscan-verify.txt for the token
+   */
+  private async verifyHtmlFile(domain: string, token: string): Promise<boolean> {
+    const urls = [
+      `https://${domain}/.well-known/vulnscan-verify.txt`,
+      `http://${domain}/.well-known/vulnscan-verify.txt`,
+    ];
+
+    for (const url of urls) {
+      try {
+        const content = await this.fetchUrl(url);
+        if (content.trim() === token) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Verify via meta tag
+   * Checks the homepage for <meta name="vulnscan-verify" content="TOKEN">
+   */
+  private async verifyMetaTag(domain: string, token: string): Promise<boolean> {
+    const urls = [`https://${domain}`, `http://${domain}`];
+
+    for (const url of urls) {
+      try {
+        const html = await this.fetchUrl(url);
+        const metaRegex = /<meta\s+name=["']vulnscan-verify["']\s+content=["']([^"']+)["']/i;
+        const match = html.match(metaRegex);
+        if (match && match[1] === token) {
+          return true;
+        }
+        // Also check reversed order (content before name)
+        const metaRegex2 = /<meta\s+content=["']([^"']+)["']\s+name=["']vulnscan-verify["']/i;
+        const match2 = html.match(metaRegex2);
+        if (match2 && match2[1] === token) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Simple HTTP(S) fetch helper with timeout
+   */
+  private fetchUrl(url: string, timeout = 10000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+      const request = client.get(url, { timeout, rejectUnauthorized: false }, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          // Follow one redirect
+          this.fetchUrl(res.headers.location, timeout).then(resolve).catch(reject);
+          return;
+        }
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => resolve(data));
+        res.on('error', reject);
+      });
+      request.on('error', reject);
+      request.on('timeout', () => { request.destroy(); reject(new Error('Timeout')); });
+    });
+  }
+
+  /**
+   * Get verification status and methods for a target
+   */
+  async getVerifyStatus(orgId: string, targetId: string) {
+    const target = await prisma.target.findFirst({
+      where: { id: targetId, orgId },
+      select: {
+        id: true,
+        value: true,
+        verificationStatus: true,
+        verificationMethod: true,
+        verificationToken: true,
+        verifiedAt: true,
+      },
+    });
+
+    if (!target) throw ApiError.notFound('Target not found');
+
+    return {
+      status: target.verificationStatus,
+      method: target.verificationMethod,
+      verifiedAt: target.verifiedAt,
+      verificationMethods: target.verificationToken ? {
+        dns: {
+          type: 'TXT',
+          host: `_vulnscan-verify.${target.value}`,
+          value: target.verificationToken,
+        },
+        html: {
+          path: '/.well-known/vulnscan-verify.txt',
+          content: target.verificationToken,
+        },
+        meta: {
+          tag: `<meta name="vulnscan-verify" content="${target.verificationToken}">`,
+        },
+      } : null,
+    };
+  }
+
+  /**
+   * Get assets for a target
+   */
+  async getAssets(orgId: string, targetId: string, query: Record<string, any>) {
+    const { page, limit, skip } = parsePagination(query);
+
+    const target = await prisma.target.findFirst({
+      where: { id: targetId, orgId },
+    });
+    if (!target) throw ApiError.notFound('Target not found');
+
+    const where: any = { targetId };
+    if (query.type) where.type = query.type;
+    if (query.isActive !== undefined) where.isActive = query.isActive === 'true';
+
+    const [assets, total] = await Promise.all([
+      prisma.asset.findMany({ where, skip, take: limit, orderBy: { lastSeenAt: 'desc' } }),
+      prisma.asset.count({ where }),
+    ]);
+
+    return { assets, total, page, limit };
   }
 }
 

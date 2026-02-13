@@ -20,6 +20,7 @@ import targetsRoutes from './modules/targets/targets.routes';
 import scansRoutes from './modules/scans/scans.routes';
 import vulnerabilitiesRoutes from './modules/vulnerabilities/vulnerabilities.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
+import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import { subscribeScanResults } from './jobs/scan.worker';
 
 // Create Express app
@@ -64,6 +65,7 @@ app.use(`${API_PREFIX}/targets`, targetsRoutes);
 app.use(`${API_PREFIX}/scans`, scansRoutes);
 app.use(`${API_PREFIX}/vulnerabilities`, vulnerabilitiesRoutes);
 app.use(`${API_PREFIX}/notifications`, notificationsRoutes);
+app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
 
 // ===== Error Handling =====
 app.use(notFoundHandler);

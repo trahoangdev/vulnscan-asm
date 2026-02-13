@@ -14,5 +14,7 @@ router.get('/:id', targetsController.getById);
 router.put('/:id', validateBody(updateTargetSchema), targetsController.update);
 router.delete('/:id', targetsController.delete);
 router.post('/:id/verify', validateBody(verifyTargetSchema), targetsController.verify);
+router.get('/:id/verify/status', targetsController.getVerifyStatus);
+router.get('/:id/assets', targetsController.getAssets);
 
 export default router;

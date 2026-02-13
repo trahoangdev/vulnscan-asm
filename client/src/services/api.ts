@@ -18,6 +18,12 @@ export const targetsApi = {
 
   verify: (id: string, method: string) =>
     apiClient.post(`/targets/${id}/verify`, { method }),
+
+  getVerifyStatus: (id: string) =>
+    apiClient.get(`/targets/${id}/verify/status`),
+
+  getAssets: (id: string, params?: Record<string, any>) =>
+    apiClient.get(`/targets/${id}/assets`, { params }),
 };
 
 export const scansApi = {
@@ -63,4 +69,20 @@ export const notificationsApi = {
 
   getUnreadCount: () =>
     apiClient.get('/notifications/unread-count'),
+};
+
+export const dashboardApi = {
+  getStats: () =>
+    apiClient.get('/dashboard/stats'),
+};
+
+export const usersApi = {
+  getMe: () =>
+    apiClient.get('/users/me'),
+
+  updateMe: (data: { name?: string; timezone?: string }) =>
+    apiClient.put('/users/me', data),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    apiClient.put('/users/me/password', data),
 };

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Target,
@@ -21,6 +22,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth';
 import { ProtectedRoute } from '@/components/providers/protected-route';
+import { notificationsApi } from '@/services/api';
+import { useNotifications } from '@/hooks/useSocket';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -44,6 +47,20 @@ export default function DashboardLayout({
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Fetch unread notification count from API
+  const { data: unreadData } = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: notificationsApi.getUnreadCount,
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  // Real-time notifications via WebSocket
+  const { unreadCount: socketUnread, setUnreadCount } = useNotifications();
+
+  // Combine API count + socket increments
+  const apiUnread = unreadData?.data?.count ?? 0;
+  const totalUnread = apiUnread + socketUnread;
 
   const handleLogout = () => {
     logout();
@@ -154,7 +171,11 @@ export default function DashboardLayout({
               <Link href="/dashboard/notifications">
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="h-5 w-5" />
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-destructive rounded-full" />
+                  {totalUnread > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                      {totalUnread > 99 ? '99+' : totalUnread}
+                    </span>
+                  )}
                 </Button>
               </Link>
 

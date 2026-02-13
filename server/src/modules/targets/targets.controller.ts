@@ -81,6 +81,34 @@ export class TargetsController {
       next(error);
     }
   }
+
+  /**
+   * GET /targets/:id/verify/status
+   */
+  async getVerifyStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await targetsService.getVerifyStatus(req.user!.orgId, req.params.id);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /targets/:id/assets
+   */
+  async getAssets(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await targetsService.getAssets(
+        req.user!.orgId,
+        req.params.id,
+        req.query as Record<string, any>,
+      );
+      return ApiResponse.paginated(res, result.assets, result.total, result.page, result.limit);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const targetsController = new TargetsController();

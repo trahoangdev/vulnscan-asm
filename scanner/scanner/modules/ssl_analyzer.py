@@ -86,7 +86,7 @@ class SslAnalyzer(BaseModule):
                         Finding(
                             title="SSL Certificate Expired",
                             severity=Severity.CRITICAL,
-                            category=VulnCategory.SSL_TLS,
+                            category=VulnCategory.CERT_ISSUE,
                             description=f"The SSL certificate for {target} expired {abs(days_left)} days ago.",
                             solution="Renew the SSL certificate immediately.",
                             affected_component=f"{target}:{port}",
@@ -97,7 +97,7 @@ class SslAnalyzer(BaseModule):
                         Finding(
                             title="SSL Certificate Expiring Soon",
                             severity=Severity.HIGH if days_left < 7 else Severity.MEDIUM,
-                            category=VulnCategory.SSL_TLS,
+                            category=VulnCategory.CERT_ISSUE,
                             description=f"The SSL certificate for {target} expires in {days_left} days.",
                             solution="Renew the SSL certificate before it expires.",
                             affected_component=f"{target}:{port}",
@@ -110,7 +110,7 @@ class SslAnalyzer(BaseModule):
                     Finding(
                         title="Self-Signed SSL Certificate",
                         severity=Severity.MEDIUM,
-                        category=VulnCategory.SSL_TLS,
+                        category=VulnCategory.CERT_ISSUE,
                         description=f"The SSL certificate for {target} is self-signed.",
                         solution="Use a certificate from a trusted Certificate Authority (CA).",
                         affected_component=f"{target}:{port}",

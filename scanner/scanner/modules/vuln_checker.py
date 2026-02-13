@@ -91,7 +91,7 @@ class VulnChecker(BaseModule):
                         Finding(
                             title="HTTP to HTTPS Redirect Missing",
                             severity=Severity.MEDIUM,
-                            category=VulnCategory.WEB,
+                            category=VulnCategory.SECURITY_HEADERS,
                             description=f"HTTP request to {http_url} does not redirect to HTTPS.",
                             solution="Configure HTTP to HTTPS redirect on the web server.",
                             affected_component=http_url,
@@ -102,7 +102,7 @@ class VulnChecker(BaseModule):
                         Finding(
                             title="HTTP Redirect Does Not Point to HTTPS",
                             severity=Severity.MEDIUM,
-                            category=VulnCategory.WEB,
+                            category=VulnCategory.SECURITY_HEADERS,
                             description="HTTP redirects but not to an HTTPS URL.",
                             solution="Ensure HTTP redirects to HTTPS.",
                             affected_component=http_url,
@@ -121,7 +121,7 @@ class VulnChecker(BaseModule):
                         Finding(
                             title="Potential Open Redirect",
                             severity=Severity.MEDIUM,
-                            category=VulnCategory.WEB,
+                            category=VulnCategory.OPEN_REDIRECT,
                             description=f"The application may be vulnerable to open redirect attacks.",
                             solution="Validate and whitelist redirect URLs.",
                             affected_component=base_url,
@@ -142,7 +142,7 @@ class VulnChecker(BaseModule):
                         Finding(
                             title="CORS Misconfiguration",
                             severity=Severity.HIGH if "evil.com" in acao else Severity.MEDIUM,
-                            category=VulnCategory.WEB,
+                            category=VulnCategory.CORS_MISCONFIG,
                             description=f"CORS allows requests from any/untrusted origin: {acao}",
                             solution="Restrict CORS to trusted domains only.",
                             affected_component=base_url,
@@ -163,7 +163,7 @@ class VulnChecker(BaseModule):
                             Finding(
                                 title=f"Cookie Missing Secure Flag: {cookie_name}",
                                 severity=Severity.LOW,
-                                category=VulnCategory.WEB,
+                                category=VulnCategory.COOKIE_SECURITY,
                                 description=f"Cookie '{cookie_name}' is missing the Secure flag.",
                                 solution="Add the 'Secure' flag to all cookies.",
                                 affected_component=base_url,
@@ -175,7 +175,7 @@ class VulnChecker(BaseModule):
                             Finding(
                                 title=f"Session Cookie Missing HttpOnly: {cookie_name}",
                                 severity=Severity.MEDIUM,
-                                category=VulnCategory.WEB,
+                                category=VulnCategory.COOKIE_SECURITY,
                                 description=f"Session cookie '{cookie_name}' is missing HttpOnly flag.",
                                 solution="Add the 'HttpOnly' flag to session cookies.",
                                 affected_component=base_url,

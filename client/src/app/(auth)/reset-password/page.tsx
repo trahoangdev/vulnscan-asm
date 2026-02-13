@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -32,6 +32,21 @@ const resetSchema = z
 type ResetForm = z.infer<typeof resetSchema>;
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <Card className="border-0 shadow-none lg:border lg:shadow-sm">
+        <CardContent className="pt-6 text-center">
+          <Loader2 className="h-16 w-16 text-primary mx-auto mb-4 animate-spin" />
+          <p className="text-muted-foreground">Loading...</p>
+        </CardContent>
+      </Card>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
