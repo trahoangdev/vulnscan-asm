@@ -69,7 +69,7 @@ export default function TargetsPage() {
     onError: () => toast.error('Failed to delete target'),
   });
 
-  const targets = data?.data?.data?.data || [];
+  const targets = data?.data?.data || [];
 
   const handleAdd = () => {
     if (!newTarget.value.trim()) return;

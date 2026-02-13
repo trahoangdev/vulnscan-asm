@@ -19,6 +19,9 @@ export const targetsApi = {
   verify: (id: string, method: string) =>
     apiClient.post(`/targets/${id}/verify`, { method }),
 
+  skipVerify: (id: string) =>
+    apiClient.post(`/targets/${id}/verify/skip`),
+
   getVerifyStatus: (id: string) =>
     apiClient.get(`/targets/${id}/verify/status`),
 

@@ -11,7 +11,7 @@ interface ScanJobData {
   targetId: string;
   targetValue: string;
   profile: string;
-  orgId: string;
+  orgId?: string;
 }
 
 /**
@@ -179,17 +179,36 @@ async function subscribeScanResults() {
 
         // Save assets
         if (assets && assets.length > 0) {
-          await prisma.asset.createMany({
-            data: assets.map((a: any) => ({
-              targetId: scan.targetId,
-              type: a.type,
-              value: a.value,
-              metadata: a.metadata || {},
-              firstSeenAt: new Date(),
-              lastSeenAt: new Date(),
-            })),
-            skipDuplicates: true,
-          });
+          for (const a of assets) {
+            try {
+              await prisma.asset.upsert({
+                where: {
+                  targetId_type_value: {
+                    targetId: scan.targetId,
+                    type: a.type,
+                    value: a.value,
+                  },
+                },
+                create: {
+                  targetId: scan.targetId,
+                  type: a.type,
+                  value: a.value,
+                  ip: a.ip || null,
+                  technologies: a.metadata?.technologies || null,
+                  dnsRecords: a.metadata?.dnsRecords || null,
+                  sslInfo: a.metadata?.sslInfo || null,
+                  firstSeenAt: new Date(),
+                  lastSeenAt: new Date(),
+                },
+                update: {
+                  lastSeenAt: new Date(),
+                  ip: a.ip || undefined,
+                },
+              });
+            } catch (assetErr) {
+              log.warn('Failed to save asset', { value: a.value, error: assetErr instanceof Error ? assetErr.message : 'Unknown' });
+            }
+          }
         }
 
         // Save findings  
@@ -197,40 +216,54 @@ async function subscribeScanResults() {
           await prisma.vulnFinding.createMany({
             data: findings.map((f: any) => ({
               scanId: scan.id,
-              targetId: scan.targetId,
-              orgId: scan.orgId,
               title: f.title,
               severity: f.severity,
               category: mapCategory(f.category),
-              description: f.description,
-              solution: f.solution || '',
-              cveId: f.cveId,
-              cvssScore: f.cvssScore,
-              affectedComponent: f.affectedComponent,
-              evidence: f.evidence || '',
+              description: f.description || '',
+              remediation: f.solution || f.remediation || null,
+              cveId: f.cveId || null,
+              cvssScore: f.cvssScore || null,
+              affectedUrl: f.affectedComponent || f.affectedUrl || null,
+              evidence: f.evidence ? (typeof f.evidence === 'string' ? { raw: f.evidence } : f.evidence) : null,
               references: f.references || [],
               status: 'OPEN',
             })),
           });
         }
 
-        // Save scan result
+        // Save scan result summary
         await prisma.scanResult.create({
           data: {
             scanId: scan.id,
-            resultData: result,
-            assetsFound: assets?.length || 0,
-            vulnsFound: findings?.length || 0,
+            module: 'all',
+            status: 'COMPLETED',
+            rawOutput: result,
+            startedAt: scan.startedAt || new Date(),
+            completedAt: new Date(),
           },
         });
 
-        // Update scan status
+        // Update scan status with counts
+        const severityCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+        for (const f of (findings || [])) {
+          const sev = (f.severity || '').toLowerCase();
+          if (sev in severityCounts) severityCounts[sev as keyof typeof severityCounts]++;
+        }
+
         await prisma.scan.update({
           where: { id: scanId },
           data: {
             status: 'COMPLETED',
             completedAt: new Date(),
             progress: 100,
+            totalAssets: assets?.length || 0,
+            totalVulns: findings?.length || 0,
+            criticalCount: severityCounts.critical,
+            highCount: severityCounts.high,
+            mediumCount: severityCounts.medium,
+            lowCount: severityCounts.low,
+            infoCount: severityCounts.info,
+            duration: scan.startedAt ? Math.round((Date.now() - scan.startedAt.getTime()) / 1000) : null,
           },
         });
 
@@ -254,7 +287,7 @@ async function subscribeScanResults() {
           try {
             // Get org members to notify
             const orgMembers = await prisma.orgMember.findMany({
-              where: { orgId: scan.orgId },
+              where: { orgId: scan.target.orgId },
               include: { user: { select: { id: true, name: true, email: true } } },
             });
 

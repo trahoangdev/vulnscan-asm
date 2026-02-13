@@ -66,6 +66,9 @@ def main() -> None:
         help="Worker concurrency",
     )
 
+    # redis-worker command
+    subparsers.add_parser("redis-worker", help="Start Redis pub/sub worker (bridges with Node.js server)")
+
     args = parser.parse_args()
     setup_logging()
 
@@ -86,6 +89,12 @@ def main() -> None:
                 "scan",
             ]
         )
+
+    elif args.command == "redis-worker":
+        logger.info("Starting Redis pub/sub worker")
+        from scanner.redis_worker import main as redis_main
+        redis_main()
+
     else:
         parser.print_help()
         sys.exit(1)

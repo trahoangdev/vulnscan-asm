@@ -176,6 +176,28 @@ export class TargetsService {
   }
 
   /**
+   * Skip verification (development only)
+   */
+  async skipVerification(orgId: string, targetId: string) {
+    const target = await prisma.target.findFirst({
+      where: { id: targetId, orgId },
+    });
+    if (!target) throw ApiError.notFound('Target not found');
+    if (target.verificationStatus === 'VERIFIED') {
+      return { message: 'Target already verified', status: 'VERIFIED' };
+    }
+    await prisma.target.update({
+      where: { id: targetId },
+      data: {
+        verificationStatus: 'VERIFIED',
+        verificationMethod: 'DNS_TXT',
+        verifiedAt: new Date(),
+      },
+    });
+    return { message: 'Target verified (dev skip)', status: 'VERIFIED' };
+  }
+
+  /**
    * Verify domain ownership
    */
   async verify(orgId: string, targetId: string, method: string) {

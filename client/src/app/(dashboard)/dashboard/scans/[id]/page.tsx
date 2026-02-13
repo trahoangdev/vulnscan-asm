@@ -78,7 +78,7 @@ export default function ScanDetailPage() {
 
   const st = statusConfig[scan.status] || statusConfig.QUEUED;
   const StatusIcon = st.icon;
-  const findings = findingsData?.data?.data?.data || [];
+  const findings = findingsData?.data?.data || [];
 
   return (
     <div className="space-y-6">

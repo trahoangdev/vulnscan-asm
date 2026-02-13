@@ -96,7 +96,7 @@ class DnsEnumerator(BaseModule):
                 Finding(
                     title="Missing SPF Record",
                     severity=Severity.MEDIUM,
-                    category=VulnCategory.DNS,
+                    category=VulnCategory.EMAIL_SECURITY,
                     description=f"No SPF record found for {target}. This may allow email spoofing.",
                     solution="Add an SPF record to your DNS configuration.",
                     affected_component=target,
@@ -108,7 +108,7 @@ class DnsEnumerator(BaseModule):
                 Finding(
                     title="Missing DMARC Record",
                     severity=Severity.MEDIUM,
-                    category=VulnCategory.DNS,
+                    category=VulnCategory.EMAIL_SECURITY,
                     description=f"No DMARC record found for {target}.",
                     solution="Add a DMARC record (e.g., _dmarc.{target} TXT 'v=DMARC1; p=reject').",
                     affected_component=target,
@@ -128,7 +128,7 @@ class DnsEnumerator(BaseModule):
                         Finding(
                             title="DNS Zone Transfer Allowed (AXFR)",
                             severity=Severity.HIGH,
-                            category=VulnCategory.DNS,
+                            category=VulnCategory.INFO_DISCLOSURE,
                             description=(
                                 f"DNS zone transfer (AXFR) is allowed on nameserver {ns_host}. "
                                 f"This exposes all DNS records to anyone."

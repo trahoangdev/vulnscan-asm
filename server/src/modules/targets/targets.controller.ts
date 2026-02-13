@@ -67,6 +67,18 @@ export class TargetsController {
   }
 
   /**
+   * POST /targets/:id/verify/skip (dev only)
+   */
+  async skipVerify(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await targetsService.skipVerification(req.user!.orgId, req.params.id);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * POST /targets/:id/verify
    */
   async verify(req: Request, res: Response, next: NextFunction) {

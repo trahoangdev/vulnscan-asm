@@ -65,8 +65,8 @@ export default function ScansPage() {
     },
   });
 
-  const scans = scansData?.data?.data?.data || [];
-  const targets = targetsData?.data?.data?.data || [];
+  const scans = scansData?.data?.data || [];
+  const targets = targetsData?.data?.data || [];
 
   return (
     <div className="space-y-6">

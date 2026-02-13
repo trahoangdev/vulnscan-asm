@@ -113,6 +113,7 @@ export class ScansService {
       targetType: target.type,
       modules,
       profile: data.profile,
+      orgId,
     });
 
     return {

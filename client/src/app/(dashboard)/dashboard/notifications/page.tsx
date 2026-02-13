@@ -37,7 +37,7 @@ export default function NotificationsPage() {
     },
   });
 
-  const notifications = data?.data?.data?.data || [];
+  const notifications = data?.data?.data || [];
 
   return (
     <div className="space-y-6 max-w-2xl">

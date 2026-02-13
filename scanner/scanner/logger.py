@@ -1,7 +1,13 @@
 """Structured logging setup."""
 
+import logging
 import structlog
 from scanner.config import config
+
+
+# Map log level string to numeric value
+def _get_log_level(level_name: str) -> int:
+    return getattr(logging, level_name.upper(), logging.INFO)
 
 
 def setup_logging() -> None:
@@ -18,7 +24,7 @@ def setup_logging() -> None:
             else structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            structlog.get_level_from_name(config.log_level)
+            _get_log_level(config.log_level)
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),

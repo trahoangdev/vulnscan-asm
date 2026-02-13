@@ -292,16 +292,30 @@ export default function TargetDetailPage() {
               <p className="text-sm text-muted-foreground">
                 After completing the step above, click the button below to verify.
               </p>
-              <Button
-                onClick={() => verifyMutation.mutate(selectedMethod)}
-                disabled={verifyMutation.isPending}
-              >
-                {verifyMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying...</>
-                ) : (
-                  <><ShieldCheck className="h-4 w-4 mr-2" />Verify Now</>
-                )}
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => verifyMutation.mutate(selectedMethod)}
+                  disabled={verifyMutation.isPending}
+                >
+                  {verifyMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying...</>
+                  ) : (
+                    <><ShieldCheck className="h-4 w-4 mr-2" />Verify Now</>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    targetsApi.skipVerify(id).then(() => {
+                      toast.success('Target verified (dev skip)');
+                      queryClient.invalidateQueries({ queryKey: ['target', id] });
+                      queryClient.invalidateQueries({ queryKey: ['target-verify', id] });
+                    }).catch(() => toast.error('Skip verification failed'));
+                  }}
+                >
+                  <Shield className="h-4 w-4 mr-2" />Skip Verification (Dev)
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

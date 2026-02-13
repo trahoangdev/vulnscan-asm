@@ -49,7 +49,7 @@ export default function VulnerabilitiesPage() {
       }),
   });
 
-  const vulns = data?.data?.data?.data || [];
+  const vulns = data?.data?.data || [];
 
   return (
     <div className="space-y-6">
