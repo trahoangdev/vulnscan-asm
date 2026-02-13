@@ -1,0 +1,18 @@
+import { Router } from 'express';
+import { scansController } from './scans.controller';
+import { validateBody } from '../../middleware/validate';
+import { authenticate } from '../../middleware/auth';
+import { scanRateLimiter } from '../../middleware/rateLimiter';
+import { createScanSchema } from './scans.schema';
+
+const router = Router();
+
+router.use(authenticate);
+
+router.get('/', scansController.list);
+router.post('/', scanRateLimiter, validateBody(createScanSchema), scansController.create);
+router.get('/:id', scansController.getById);
+router.post('/:id/cancel', scansController.cancel);
+router.get('/:id/findings', scansController.getFindings);
+
+export default router;
