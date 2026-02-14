@@ -90,3 +90,42 @@ export function authorize(...roles: string[]) {
     }
   };
 }
+
+/**
+ * Admin-only middleware — requires ADMIN or SUPER_ADMIN system role
+ */
+export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
+  try {
+    if (!req.user) {
+      throw ApiError.unauthorized();
+    }
+
+    const role = req.user.systemRole;
+    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
+      throw ApiError.forbidden('Admin access required');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Super-admin only middleware
+ */
+export function requireSuperAdmin(req: Request, _res: Response, next: NextFunction) {
+  try {
+    if (!req.user) {
+      throw ApiError.unauthorized();
+    }
+
+    if (req.user.systemRole !== 'SUPER_ADMIN') {
+      throw ApiError.forbidden('Super admin access required');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}

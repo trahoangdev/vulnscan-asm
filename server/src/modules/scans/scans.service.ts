@@ -114,6 +114,7 @@ export class ScansService {
       modules,
       profile: data.profile,
       orgId,
+      scanConfig: data.scanConfig,
     });
 
     return {

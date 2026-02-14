@@ -30,6 +30,7 @@ import reportsRoutes from './modules/reports/reports.routes';
 import organizationsRoutes from './modules/organizations/organizations.routes';
 import apiKeysRoutes from './modules/apikeys/apikeys.routes';
 import webhooksRoutes from './modules/webhooks/webhooks.routes';
+import adminRoutes from './modules/admin/admin.routes';
 import { subscribeScanResults } from './jobs/scan.worker';
 import { startScanScheduler } from './jobs/scheduler';
 
@@ -115,6 +116,7 @@ app.use(`${API_PREFIX}/reports`, reportsRoutes);
 app.use(`${API_PREFIX}/organizations`, organizationsRoutes);
 app.use(`${API_PREFIX}/api-keys`, apiKeysRoutes);
 app.use(`${API_PREFIX}/webhooks`, webhooksRoutes);
+app.use(`${API_PREFIX}/admin`, adminRoutes);
 
 // ===== Error Handling =====
 app.use(notFoundHandler);

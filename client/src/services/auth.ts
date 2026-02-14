@@ -21,6 +21,7 @@ export interface AuthResponse {
     email: string;
     name: string;
     emailVerified: boolean;
+    systemRole?: string;
     organization: {
       id: string;
       name: string;

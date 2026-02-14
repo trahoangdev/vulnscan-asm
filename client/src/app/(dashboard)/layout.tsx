@@ -205,6 +205,16 @@ export default function DashboardLayout({
             </Link>
           );
         })}
+        {/* Admin Panel link — visible only for ADMIN / SUPER_ADMIN */}
+        {(user?.systemRole === 'ADMIN' || user?.systemRole === 'SUPER_ADMIN') && (
+          <Link
+            href="/admin"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+          >
+            <ShieldAlert className="h-5 w-5" />
+            Admin Panel
+          </Link>
+        )}
       </div>
     </div>
   );

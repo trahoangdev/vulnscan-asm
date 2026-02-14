@@ -13,7 +13,14 @@ from scanner.modules import MODULE_REGISTRY
 # Scan profiles define which modules run
 SCAN_PROFILES: dict[str, list[str]] = {
     "QUICK": ["dns_enumerator", "ssl_analyzer", "tech_detector"],
-    "STANDARD": ["dns_enumerator", "port_scanner", "ssl_analyzer", "web_crawler", "tech_detector"],
+    "STANDARD": [
+        "dns_enumerator",
+        "port_scanner",
+        "ssl_analyzer",
+        "web_crawler",
+        "tech_detector",
+        "admin_detector",
+    ],
     "DEEP": [
         "dns_enumerator",
         "port_scanner",
@@ -21,6 +28,9 @@ SCAN_PROFILES: dict[str, list[str]] = {
         "web_crawler",
         "tech_detector",
         "vuln_checker",
+        "subdomain_takeover",
+        "admin_detector",
+        "nvd_cve_matcher",
     ],
 }
 
@@ -29,11 +39,6 @@ class ScanEngine:
     """Orchestrates vulnerability scanning across multiple modules."""
 
     def __init__(self, progress_callback: Any = None):
-        """
-        Args:
-            progress_callback: Optional async callable(progress: int, message: str)
-                              to report scan progress.
-        """
         self.progress_callback = progress_callback
 
     async def run_scan(
@@ -47,18 +52,24 @@ class ScanEngine:
 
         Args:
             target: Domain, IP, or URL to scan.
-            profile: Scan profile (QUICK, STANDARD, DEEP).
-            options: Additional options per module.
-
-        Returns:
-            Aggregated scan results.
+            profile: Scan profile (QUICK, STANDARD, DEEP, CUSTOM).
+            options: Additional options:
+                - modules: explicit list of module names to run (for CUSTOM profile)
+                - exclude_paths: list of URL path substrings to skip
+                - max_concurrent: max parallel module execution (default 1 = sequential)
+                - request_delay: seconds between individual HTTP requests
         """
         opts = options or {}
         start = time.time()
         log = logger.bind(target=target, profile=profile)
         log.info("Starting scan")
 
-        module_names = SCAN_PROFILES.get(profile, SCAN_PROFILES["STANDARD"])
+        # Determine which modules to run
+        if profile == "CUSTOM" and opts.get("modules"):
+            module_names = [m for m in opts["modules"] if m in MODULE_REGISTRY]
+        else:
+            module_names = SCAN_PROFILES.get(profile, SCAN_PROFILES["STANDARD"])
+
         total_modules = len(module_names)
         completed = 0
 
@@ -66,6 +77,9 @@ class ScanEngine:
         all_findings: list[dict[str, Any]] = []
         module_results: dict[str, dict[str, Any]] = {}
         all_errors: list[str] = []
+
+        # Build shared options for modules
+        exclude_paths: list[str] = opts.get("exclude_paths", [])
 
         for i, module_name in enumerate(module_names):
             module_cls = MODULE_REGISTRY.get(module_name)
@@ -82,10 +96,16 @@ class ScanEngine:
             )
 
             try:
-                # Pass discovered assets to vuln_checker
+                # Build per-module options
                 module_opts = opts.get(module_name, {})
-                if module_name == "vuln_checker":
+
+                # Pass discovered assets to modules that need them
+                if module_name in ("vuln_checker", "subdomain_takeover", "nvd_cve_matcher", "admin_detector"):
                     module_opts["discovered_assets"] = all_assets
+
+                # Pass exclusion rules
+                if exclude_paths:
+                    module_opts["exclude_paths"] = exclude_paths
 
                 result: ModuleResult = await asyncio.wait_for(
                     module.run(target, module_opts),

@@ -14,24 +14,31 @@ datasource db {
 // USER & AUTHENTICATION
 // =============================================
 
+enum SystemRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  passwordHash     String?   @map("password_hash")
+  id               String     @id @default(cuid())
+  email            String     @unique
+  passwordHash     String?    @map("password_hash")
   name             String
   avatar           String?
-  emailVerified    Boolean   @default(false) @map("email_verified")
-  emailVerifyToken String?   @map("email_verify_token")
-  resetToken       String?   @map("reset_token")
-  resetTokenExp    DateTime? @map("reset_token_exp")
-  twoFactorEnabled Boolean   @default(false) @map("two_factor_enabled")
-  twoFactorSecret  String?   @map("two_factor_secret")
-  timezone         String    @default("UTC")
-  lastLoginAt      DateTime? @map("last_login_at")
-  lastLoginIp      String?   @map("last_login_ip")
-  isActive         Boolean   @default(true) @map("is_active")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  systemRole       SystemRole @default(USER) @map("system_role")
+  emailVerified    Boolean    @default(false) @map("email_verified")
+  emailVerifyToken String?    @map("email_verify_token")
+  resetToken       String?    @map("reset_token")
+  resetTokenExp    DateTime?  @map("reset_token_exp")
+  twoFactorEnabled Boolean    @default(false) @map("two_factor_enabled")
+  twoFactorSecret  String?    @map("two_factor_secret")
+  timezone         String     @default("UTC")
+  lastLoginAt      DateTime?  @map("last_login_at")
+  lastLoginIp      String?    @map("last_login_ip")
+  isActive         Boolean    @default(true) @map("is_active")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
 
   // Relations
   orgMemberships OrgMember[]
@@ -39,6 +46,7 @@ model User {
   scansCreated   Scan[]         @relation("ScanCreator")
   notifications  Notification[]
   oauthAccounts  OAuthAccount[]
+  auditLogs      AuditLog[]
 
   @@map("users")
 }
@@ -494,4 +502,45 @@ enum NotificationType {
   DOMAIN_VERIFY_REMINDER
   WEEKLY_DIGEST
   SYSTEM
+}
+
+// =============================================
+// ADMIN — AUDIT LOGS
+// =============================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String   // e.g. "user.deactivate", "org.delete", "settings.update"
+  entity     String   // e.g. "user", "organization", "setting"
+  entityId   String?  @map("entity_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// =============================================
+// ADMIN — SYSTEM SETTINGS
+// =============================================
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  category  String   @default("general") // general, security, email, scanner
+  label     String?
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([category])
+  @@map("system_settings")
 }

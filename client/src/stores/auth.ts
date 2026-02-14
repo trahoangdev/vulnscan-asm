@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   emailVerified: boolean;
+  systemRole?: string;
   organization?: {
     id: string;
     name: string;

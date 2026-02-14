@@ -15,6 +15,10 @@ import {
   FileCode,
   ChevronRight,
   Terminal,
+  GitCompare,
+  Plus,
+  Minus,
+  Equal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +50,9 @@ const moduleLabels: Record<string, string> = {
   web_crawler: 'Web Crawler',
   tech_detector: 'Tech Detector',
   vuln_checker: 'Vulnerability Checker',
+  subdomain_takeover: 'Subdomain Takeover',
+  admin_detector: 'Admin Panel Detector',
+  nvd_cve_matcher: 'NVD CVE Matcher',
 };
 
 export default function ScanDetailPage() {
@@ -75,6 +82,12 @@ export default function ScanDetailPage() {
     enabled: !!data?.data?.data && data.data.data.status === 'COMPLETED',
   });
 
+  const { data: diffData } = useQuery({
+    queryKey: ['scan-diff', scanId],
+    queryFn: () => scansApi.diff(scanId),
+    enabled: !!data?.data?.data && data.data.data.status === 'COMPLETED',
+  });
+
   const cancelMutation = useMutation({
     mutationFn: () => scansApi.cancel(scanId),
     onSuccess: () => {
@@ -101,6 +114,7 @@ export default function ScanDetailPage() {
   const StatusIcon = st.icon;
   const findings = findingsData?.data?.data || [];
   const results = resultsData?.data?.data || [];
+  const diff = diffData?.data?.data;
 
   return (
     <div className="space-y-6">
@@ -176,6 +190,10 @@ export default function ScanDetailPage() {
             <ShieldAlert className="h-4 w-4" />
             Findings ({findings.length})
           </TabsTrigger>
+          <TabsTrigger value="diff" className="gap-2">
+            <GitCompare className="h-4 w-4" />
+            Diff
+          </TabsTrigger>
           <TabsTrigger value="results" className="gap-2">
             <Terminal className="h-4 w-4" />
             Module Results ({results.length})
@@ -237,6 +255,74 @@ export default function ScanDetailPage() {
                       </Link>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Diff Tab */}
+        <TabsContent value="diff">
+          <Card>
+            <CardHeader>
+              <CardTitle>Scan Diff</CardTitle>
+              <CardDescription>Comparison with the previous scan on this target</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!diff || diff.message ? (
+                <div className="text-center py-8">
+                  <GitCompare className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
+                  <p className="text-muted-foreground">
+                    {diff?.message || 'No previous scan to compare against'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                      <Plus className="h-5 w-5 text-green-600 mx-auto mb-1" />
+                      <p className="text-2xl font-bold text-green-700">{diff.newFindings?.length || 0}</p>
+                      <p className="text-xs text-green-600">New Findings</p>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                      <Minus className="h-5 w-5 text-blue-600 mx-auto mb-1" />
+                      <p className="text-2xl font-bold text-blue-700">{diff.fixedFindings?.length || 0}</p>
+                      <p className="text-xs text-blue-600">Fixed</p>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                      <Equal className="h-5 w-5 text-gray-600 mx-auto mb-1" />
+                      <p className="text-2xl font-bold text-gray-700">{diff.unchangedCount || 0}</p>
+                      <p className="text-xs text-gray-600">Unchanged</p>
+                    </div>
+                  </div>
+                  {diff.newFindings?.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 text-green-700">New Findings</h4>
+                      <div className="space-y-1">
+                        {diff.newFindings.map((f: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 p-2 bg-green-50 rounded text-sm">
+                            <div className={`h-2 w-2 rounded-full ${severityColors[f.severity] || 'bg-gray-400'}`} />
+                            <span className="font-medium">{f.title}</span>
+                            <Badge variant="outline" className="text-[10px] h-5 ml-auto">{f.severity}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {diff.fixedFindings?.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 text-blue-700">Fixed Findings</h4>
+                      <div className="space-y-1">
+                        {diff.fixedFindings.map((f: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 p-2 bg-blue-50 rounded text-sm">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" />
+                            <span className="line-through text-muted-foreground">{f.title}</span>
+                            <Badge variant="outline" className="text-[10px] h-5 ml-auto">{f.severity}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

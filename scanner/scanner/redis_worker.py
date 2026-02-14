@@ -49,6 +49,8 @@ class RedisScanWorker:
                 scan_id = data.get("scanId")
                 target = data.get("target")
                 profile = data.get("profile", "STANDARD")
+                modules = data.get("modules")
+                scan_config = data.get("scanConfig", {})
 
                 if not scan_id or not target:
                     logger.warning("Invalid scan task — missing scanId or target", data=data)
@@ -59,12 +61,13 @@ class RedisScanWorker:
                     scan_id=scan_id,
                     target=target,
                     profile=profile,
+                    modules=modules,
                 )
 
                 # Run scan in a separate thread to not block the listener
                 thread = threading.Thread(
                     target=self._run_scan,
-                    args=(scan_id, target, profile),
+                    args=(scan_id, target, profile, modules, scan_config),
                     daemon=True,
                 )
                 thread.start()
@@ -74,7 +77,7 @@ class RedisScanWorker:
             except Exception as e:
                 logger.error("Error processing scan task", error=str(e))
 
-    def _run_scan(self, scan_id: str, target: str, profile: str) -> None:
+    def _run_scan(self, scan_id: str, target: str, profile: str, modules: list[str] | None = None, scan_config: dict | None = None) -> None:
         """Run a scan and publish results back to Redis."""
         log = logger.bind(scan_id=scan_id, target=target, profile=profile)
         log.info("Starting scan execution")
@@ -97,9 +100,21 @@ class RedisScanWorker:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+            # Build engine options from scan config
+            engine_options: dict = {}
+            if modules:
+                engine_options["modules"] = modules
+            if scan_config:
+                if scan_config.get("excludePaths"):
+                    engine_options["exclude_paths"] = scan_config["excludePaths"]
+                if scan_config.get("maxConcurrent"):
+                    engine_options["max_concurrent"] = scan_config["maxConcurrent"]
+                if scan_config.get("requestDelay"):
+                    engine_options["request_delay"] = scan_config["requestDelay"]
+
             try:
                 result = loop.run_until_complete(
-                    engine.run_scan(target, profile)
+                    engine.run_scan(target, profile, engine_options if engine_options else None)
                 )
             finally:
                 loop.close()

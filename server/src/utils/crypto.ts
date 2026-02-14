@@ -19,6 +19,7 @@ export interface TokenPayload {
   userId: string;
   email: string;
   orgId?: string;
+  systemRole?: string;
 }
 
 export function generateAccessToken(payload: TokenPayload): string {

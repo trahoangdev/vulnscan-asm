@@ -13,6 +13,12 @@ interface ScanJobData {
   targetValue: string;
   profile: string;
   orgId?: string;
+  modules?: string[];
+  scanConfig?: {
+    excludePaths?: string[];
+    maxConcurrent?: number;
+    requestDelay?: number;
+  };
 }
 
 /**
@@ -65,7 +71,7 @@ function mapCategory(category: string): string {
 const scanWorker = new Worker<ScanJobData>(
   'scan',
   async (job: Job<ScanJobData>) => {
-    const { scanId, targetValue, profile, orgId } = job.data;
+    const { scanId, targetValue, profile, orgId, modules, scanConfig } = job.data;
     const log = logger.child({ scanId, target: targetValue, profile });
     
     log.info('Processing scan job');
@@ -87,6 +93,8 @@ const scanWorker = new Worker<ScanJobData>(
         target: targetValue,
         profile,
         orgId,
+        modules,
+        scanConfig,
       });
       
       await redis.publish('scanner:tasks', scanTask);

@@ -180,3 +180,66 @@ export const webhooksApi = {
   test: (id: string) =>
     apiClient.post(`/webhooks/${id}/test`),
 };
+
+// ========================
+// ADMIN API
+// ========================
+
+export const adminApi = {
+  // Dashboard
+  getDashboard: () =>
+    apiClient.get('/admin/dashboard'),
+
+  // Users
+  listUsers: (params?: Record<string, any>) =>
+    apiClient.get('/admin/users', { params }),
+
+  getUserById: (id: string) =>
+    apiClient.get(`/admin/users/${id}`),
+
+  updateUser: (id: string, data: Record<string, any>) =>
+    apiClient.put(`/admin/users/${id}`, data),
+
+  deleteUser: (id: string) =>
+    apiClient.delete(`/admin/users/${id}`),
+
+  resetUserPassword: (id: string, newPassword: string) =>
+    apiClient.post(`/admin/users/${id}/reset-password`, { newPassword }),
+
+  // Organizations
+  listOrgs: (params?: Record<string, any>) =>
+    apiClient.get('/admin/organizations', { params }),
+
+  getOrgById: (id: string) =>
+    apiClient.get(`/admin/organizations/${id}`),
+
+  updateOrg: (id: string, data: Record<string, any>) =>
+    apiClient.put(`/admin/organizations/${id}`, data),
+
+  deleteOrg: (id: string) =>
+    apiClient.delete(`/admin/organizations/${id}`),
+
+  // Settings
+  getSettings: (category?: string) =>
+    apiClient.get('/admin/settings', { params: category ? { category } : undefined }),
+
+  getSetting: (key: string) =>
+    apiClient.get(`/admin/settings/${key}`),
+
+  updateSetting: (key: string, value: any, label?: string) =>
+    apiClient.put(`/admin/settings/${key}`, { value, label }),
+
+  batchUpdateSettings: (settings: Array<{ key: string; value: any; category?: string; label?: string }>) =>
+    apiClient.put('/admin/settings', { settings }),
+
+  // Audit Logs
+  listAuditLogs: (params?: Record<string, any>) =>
+    apiClient.get('/admin/audit-logs', { params }),
+
+  // Scans
+  listScans: (params?: Record<string, any>) =>
+    apiClient.get('/admin/scans', { params }),
+
+  cancelScan: (id: string) =>
+    apiClient.post(`/admin/scans/${id}/cancel`),
+};

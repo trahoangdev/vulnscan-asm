@@ -14,7 +14,7 @@ export const SCAN_PROFILES = {
   },
   STANDARD: {
     name: 'Standard Scan',
-    description: 'Comprehensive scan — discovery + web crawl + technology',
+    description: 'Comprehensive scan — discovery + web crawl + admin detection',
     estimatedDuration: 1200, // 20 minutes
     modules: [
       'dns_enumerator',
@@ -22,11 +22,12 @@ export const SCAN_PROFILES = {
       'ssl_analyzer',
       'web_crawler',
       'tech_detector',
+      'admin_detector',
     ],
   },
   DEEP: {
     name: 'Deep Scan',
-    description: 'Full assessment — all modules including vulnerability checks',
+    description: 'Full assessment — all modules including active vulnerability testing & CVE matching',
     estimatedDuration: 3600, // 60 minutes
     modules: [
       'dns_enumerator',
@@ -35,9 +36,25 @@ export const SCAN_PROFILES = {
       'web_crawler',
       'tech_detector',
       'vuln_checker',
+      'subdomain_takeover',
+      'admin_detector',
+      'nvd_cve_matcher',
     ],
   },
 } as const;
+
+// All available scanner modules
+export const SCANNER_MODULES = [
+  { id: 'dns_enumerator', name: 'DNS Enumeration', description: 'DNS records & subdomain discovery' },
+  { id: 'port_scanner', name: 'Port Scanner', description: 'TCP port scanning via nmap' },
+  { id: 'ssl_analyzer', name: 'SSL/TLS Analyzer', description: 'Certificate & TLS configuration checks' },
+  { id: 'web_crawler', name: 'Web Crawler', description: 'HTTP endpoint discovery & security headers' },
+  { id: 'tech_detector', name: 'Tech Detector', description: 'Technology fingerprinting' },
+  { id: 'vuln_checker', name: 'Vulnerability Checker', description: 'Active injection testing (SQLi, XSS, SSRF, LFI)' },
+  { id: 'subdomain_takeover', name: 'Subdomain Takeover', description: 'Dangling CNAME & unclaimed service detection' },
+  { id: 'admin_detector', name: 'Admin Panel Detector', description: 'Exposed admin interfaces & login pages' },
+  { id: 'nvd_cve_matcher', name: 'NVD CVE Matcher', description: 'Known CVE lookup via NVD API' },
+] as const;
 
 // ========================
 // Severity Config

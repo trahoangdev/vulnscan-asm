@@ -129,6 +129,7 @@ export class AuthService {
       userId: user.id,
       email: user.email,
       orgId: orgMembership.orgId,
+      systemRole: user.systemRole,
     };
 
     const accessToken = generateAccessToken(tokenPayload);
@@ -152,6 +153,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         emailVerified: user.emailVerified,
+        systemRole: user.systemRole,
         organization: {
           id: orgMembership.organization.id,
           name: orgMembership.organization.name,
@@ -188,6 +190,7 @@ export class AuthService {
         userId: user.id,
         email: user.email,
         orgId: orgMembership?.orgId,
+        systemRole: user.systemRole,
       };
 
       const newAccessToken = generateAccessToken(tokenPayload);

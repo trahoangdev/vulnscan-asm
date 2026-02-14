@@ -21,6 +21,12 @@ export enum OrgRole {
   VIEWER = 'VIEWER',
 }
 
+export enum SystemRole {
+  USER = 'USER',
+  ADMIN = 'ADMIN',
+  SUPER_ADMIN = 'SUPER_ADMIN',
+}
+
 export enum TargetType {
   DOMAIN = 'DOMAIN',
   IP = 'IP',
@@ -138,6 +144,7 @@ export interface User {
   name: string;
   avatar?: string;
   emailVerified: boolean;
+  systemRole: SystemRole;
   timezone: string;
   createdAt: string;
 }
