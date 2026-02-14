@@ -25,6 +25,8 @@ import {
   Info,
   ShieldCheck,
   Radio,
+  Users,
+  Key,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +42,8 @@ const navigation = [
   { name: 'Assets', href: '/dashboard/assets', icon: HardDrive },
   { name: 'Vulnerabilities', href: '/dashboard/vulnerabilities', icon: ShieldAlert },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
+  { name: 'Team', href: '/dashboard/team', icon: Users },
+  { name: 'API Keys', href: '/dashboard/api-keys', icon: Key },
 ];
 
 const bottomNav = [

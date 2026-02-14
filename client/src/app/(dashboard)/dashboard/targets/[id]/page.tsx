@@ -21,9 +21,17 @@ import {
   FileText,
   Code,
   Wifi,
+  Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { targetsApi, scansApi } from '@/services/api';
 import toast from 'react-hot-toast';
 
@@ -158,6 +166,52 @@ export default function TargetDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Scan Schedule — show when verified */}
+      {target.verificationStatus === 'VERIFIED' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Scan Schedule
+            </CardTitle>
+            <CardDescription>
+              Configure automated recurring scans for this target
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex-1 max-w-xs">
+                <Select
+                  value={target.scanSchedule || 'none'}
+                  onValueChange={(val) => {
+                    const schedule = val === 'none' ? null : val;
+                    targetsApi.setSchedule(id, { scanSchedule: schedule }).then(() => {
+                      queryClient.invalidateQueries({ queryKey: ['target', id] });
+                      toast.success(schedule ? `Schedule set to ${schedule}` : 'Schedule removed');
+                    }).catch(() => toast.error('Failed to update schedule'));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No schedule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No schedule</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {target.nextScanAt && (
+                <p className="text-sm text-muted-foreground">
+                  Next scan: {new Date(target.nextScanAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Verification Wizard — show when not verified */}
       {target.verificationStatus !== 'VERIFIED' && verify?.verificationMethods && (

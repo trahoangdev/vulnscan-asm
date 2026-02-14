@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { targetsController } from './targets.controller';
 import { validateBody } from '../../middleware/validate';
 import { authenticate } from '../../middleware/auth';
-import { createTargetSchema, updateTargetSchema, verifyTargetSchema } from './targets.schema';
+import { createTargetSchema, updateTargetSchema, verifyTargetSchema, setScheduleSchema } from './targets.schema';
 
 const router = Router();
 
@@ -17,5 +17,6 @@ router.post('/:id/verify', validateBody(verifyTargetSchema), targetsController.v
 router.post('/:id/verify/skip', targetsController.skipVerify);
 router.get('/:id/verify/status', targetsController.getVerifyStatus);
 router.get('/:id/assets', targetsController.getAssets);
+router.put('/:id/schedule', validateBody(setScheduleSchema), targetsController.setSchedule);
 
 export default router;

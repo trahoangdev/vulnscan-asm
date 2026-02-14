@@ -424,6 +424,40 @@ export class TargetsService {
 
     return { assets, total, page, limit };
   }
+
+  /**
+   * Set scan schedule for a target
+   */
+  async setSchedule(orgId: string, targetId: string, data: { scanSchedule: string | null; scanProfile?: string }) {
+    const target = await prisma.target.findFirst({
+      where: { id: targetId, orgId, isActive: true },
+    });
+    if (!target) throw ApiError.notFound('Target not found');
+
+    const SCHEDULE_INTERVALS: Record<string, number> = {
+      daily: 24 * 60 * 60 * 1000,
+      weekly: 7 * 24 * 60 * 60 * 1000,
+      monthly: 30 * 24 * 60 * 60 * 1000,
+    };
+
+    const updateData: any = {
+      scanSchedule: data.scanSchedule,
+      nextScanAt: data.scanSchedule
+        ? new Date(Date.now() + (SCHEDULE_INTERVALS[data.scanSchedule] || SCHEDULE_INTERVALS.daily))
+        : null,
+    };
+
+    if (data.scanProfile) {
+      updateData.scanProfile = data.scanProfile;
+    }
+
+    const updated = await prisma.target.update({
+      where: { id: targetId },
+      data: updateData,
+    });
+
+    return updated;
+  }
 }
 
 export const targetsService = new TargetsService();

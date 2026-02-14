@@ -21,6 +21,12 @@ export const verifyTargetSchema = z.object({
   method: z.enum(['DNS_TXT', 'HTML_FILE', 'META_TAG']),
 });
 
+export const setScheduleSchema = z.object({
+  scanSchedule: z.enum(['daily', 'weekly', 'monthly']).nullable(),
+  scanProfile: z.enum(['QUICK', 'STANDARD', 'DEEP']).optional(),
+});
+
 export type CreateTargetInput = z.infer<typeof createTargetSchema>;
 export type UpdateTargetInput = z.infer<typeof updateTargetSchema>;
 export type VerifyTargetInput = z.infer<typeof verifyTargetSchema>;
+export type SetScheduleInput = z.infer<typeof setScheduleSchema>;

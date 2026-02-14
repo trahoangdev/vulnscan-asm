@@ -14,6 +14,8 @@ import { swaggerSpec } from './config/swagger';
 import { initializeSocket } from './socket';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { apiRateLimiter } from './middleware/rateLimiter';
+import { xssSanitizer } from './middleware/sanitize';
+import { apiKeyAuth } from './middleware/apiKeyAuth';
 
 // Route imports
 import authRoutes from './modules/auth/auth.routes';
@@ -25,7 +27,10 @@ import notificationsRoutes from './modules/notifications/notifications.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import assetsRoutes from './modules/assets/assets.routes';
 import reportsRoutes from './modules/reports/reports.routes';
+import organizationsRoutes from './modules/organizations/organizations.routes';
+import apiKeysRoutes from './modules/apikeys/apikeys.routes';
 import { subscribeScanResults } from './jobs/scan.worker';
+import { startScanScheduler } from './jobs/scheduler';
 
 // Create Express app
 const app = express();
@@ -67,6 +72,8 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(xssSanitizer);
+app.use(apiKeyAuth);
 app.use(morgan('combined', {
   stream: { write: (message: string) => logger.info(message.trim()) },
 }));
@@ -104,6 +111,8 @@ app.use(`${API_PREFIX}/notifications`, notificationsRoutes);
 app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
 app.use(`${API_PREFIX}/assets`, assetsRoutes);
 app.use(`${API_PREFIX}/reports`, reportsRoutes);
+app.use(`${API_PREFIX}/organizations`, organizationsRoutes);
+app.use(`${API_PREFIX}/api-keys`, apiKeysRoutes);
 
 // ===== Error Handling =====
 app.use(notFoundHandler);
@@ -124,6 +133,9 @@ async function startServer() {
     subscribeScanResults().catch((err) => {
       logger.error('Failed to start scan results subscriber', err);
     });
+
+    // Start scan scheduler
+    startScanScheduler();
 
     // Start HTTP server
     httpServer.listen(env.PORT, () => {

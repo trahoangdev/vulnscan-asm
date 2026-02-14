@@ -4,9 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Plus,
-  Search,
   Play,
+  Search,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -14,10 +13,30 @@ import {
   AlertCircle,
   Scan as ScanIcon,
   ChevronRight,
+  Zap,
+  Shield,
+  ShieldAlert,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { scansApi, targetsApi } from '@/services/api';
 import toast from 'react-hot-toast';
 
@@ -35,10 +54,16 @@ const profileLabels: Record<string, string> = {
   DEEP: 'Deep Scan',
 };
 
+const profileDescriptions: Record<string, { desc: string; icon: React.ElementType }> = {
+  QUICK: { desc: 'Headers, SSL, exposed files — 2-5 min', icon: Zap },
+  STANDARD: { desc: 'Quick + SQLi, XSS, config checks — 10-20 min', icon: Shield },
+  DEEP: { desc: 'Full scan with all modules — 30-60 min', icon: ShieldAlert },
+};
+
 export default function ScansPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [showNewScan, setShowNewScan] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [scanForm, setScanForm] = useState({ targetId: '', profile: 'STANDARD' });
 
   const { data: scansData, isLoading } = useQuery({
@@ -49,14 +74,14 @@ export default function ScansPage() {
   const { data: targetsData } = useQuery({
     queryKey: ['targets-for-scan'],
     queryFn: () => targetsApi.list({ page: 1, limit: 100 }),
-    enabled: showNewScan,
+    enabled: dialogOpen,
   });
 
   const createMutation = useMutation({
     mutationFn: (data: { targetId: string; profile: string }) => scansApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scans'] });
-      setShowNewScan(false);
+      setDialogOpen(false);
       setScanForm({ targetId: '', profile: 'STANDARD' });
       toast.success('Scan started');
     },
@@ -66,7 +91,17 @@ export default function ScansPage() {
   });
 
   const scans = scansData?.data?.data || [];
-  const targets = targetsData?.data?.data || [];
+  const targets = (targetsData?.data?.data || []).filter(
+    (t: any) => t.verificationStatus === 'VERIFIED',
+  );
+
+  const handleStartScan = () => {
+    if (!scanForm.targetId) {
+      toast.error('Please select a target');
+      return;
+    }
+    createMutation.mutate(scanForm);
+  };
 
   return (
     <div className="space-y-6">
@@ -76,63 +111,97 @@ export default function ScansPage() {
           <h1 className="text-2xl font-bold tracking-tight">Scans</h1>
           <p className="text-muted-foreground">Run and monitor vulnerability scans.</p>
         </div>
-        <Button onClick={() => setShowNewScan(true)}>
-          <Play className="h-4 w-4 mr-2" />
-          New Scan
-        </Button>
-      </div>
-
-      {/* New Scan Form */}
-      {showNewScan && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select
-                value={scanForm.targetId}
-                onChange={(e) => setScanForm({ ...scanForm, targetId: e.target.value })}
-                className="px-3 py-2 border rounded-md text-sm bg-background flex-1"
-              >
-                <option value="">Select a target...</option>
-                {targets.map((t: any) => (
-                  <option key={t.id} value={t.id}>
-                    {t.value} ({t.type})
-                  </option>
-                ))}
-              </select>
-              <select
-                value={scanForm.profile}
-                onChange={(e) => setScanForm({ ...scanForm, profile: e.target.value })}
-                className="px-3 py-2 border rounded-md text-sm bg-background"
-              >
-                <option value="QUICK">Quick Scan</option>
-                <option value="STANDARD">Standard Scan</option>
-                <option value="DEEP">Deep Scan</option>
-              </select>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => {
-                    if (!scanForm.targetId) {
-                      toast.error('Please select a target');
-                      return;
-                    }
-                    createMutation.mutate(scanForm);
-                  }}
-                  disabled={createMutation.isPending}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Play className="h-4 w-4 mr-2" />
+              New Scan
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Start New Scan</DialogTitle>
+              <DialogDescription>
+                Select a verified target and scan profile to begin vulnerability assessment.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {/* Target selector */}
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Target</label>
+                <Select
+                  value={scanForm.targetId}
+                  onValueChange={(v) => setScanForm({ ...scanForm, targetId: v })}
                 >
-                  {createMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    'Start Scan'
-                  )}
-                </Button>
-                <Button variant="outline" onClick={() => setShowNewScan(false)}>
-                  Cancel
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a verified target..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {targets.length === 0 ? (
+                      <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                        No verified targets available
+                      </div>
+                    ) : (
+                      targets.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <span className="flex items-center gap-2">
+                            <Globe className="h-3.5 w-3.5" />
+                            {t.value} ({t.type})
+                          </span>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Profile selector */}
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Scan Profile</label>
+                <div className="grid gap-2">
+                  {(['QUICK', 'STANDARD', 'DEEP'] as const).map((profile) => {
+                    const { desc, icon: ProfileIcon } = profileDescriptions[profile];
+                    return (
+                      <button
+                        key={profile}
+                        onClick={() => setScanForm({ ...scanForm, profile })}
+                        className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
+                          scanForm.profile === profile
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                            : 'hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <ProfileIcon className={`h-5 w-5 mt-0.5 ${
+                          scanForm.profile === profile ? 'text-primary' : 'text-muted-foreground'
+                        }`} />
+                        <div>
+                          <p className="font-medium text-sm">{profileLabels[profile]}</p>
+                          <p className="text-xs text-muted-foreground">{desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleStartScan}
+                disabled={!scanForm.targetId || createMutation.isPending}
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Start Scan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {/* Search */}
       <div className="relative">
@@ -158,7 +227,7 @@ export default function ScansPage() {
             <p className="text-sm text-muted-foreground/70 mt-1 mb-4">
               Start your first vulnerability scan
             </p>
-            <Button onClick={() => setShowNewScan(true)}>
+            <Button onClick={() => setDialogOpen(true)}>
               <Play className="h-4 w-4 mr-2" />
               New Scan
             </Button>

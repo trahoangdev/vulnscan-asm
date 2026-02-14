@@ -121,6 +121,22 @@ export class TargetsController {
       next(error);
     }
   }
+
+  /**
+   * PUT /targets/:id/schedule — Set scan schedule
+   */
+  async setSchedule(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await targetsService.setSchedule(
+        req.user!.orgId,
+        req.params.id,
+        req.body,
+      );
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const targetsController = new TargetsController();

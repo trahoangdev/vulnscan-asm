@@ -34,6 +34,7 @@
     "swagger-ui-express": "^5.0.1",
     "uuid": "^10.0.0",
     "winston": "^3.15.0",
+    "xss": "^1.0.15",
     "zod": "^3.23.0"
   },
   "devDependencies": {

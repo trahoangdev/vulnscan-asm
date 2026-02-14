@@ -27,6 +27,9 @@ export const targetsApi = {
 
   getAssets: (id: string, params?: Record<string, any>) =>
     apiClient.get(`/targets/${id}/assets`, { params }),
+
+  setSchedule: (id: string, data: { scanSchedule: string | null; scanProfile?: string }) =>
+    apiClient.put(`/targets/${id}/schedule`, data),
 };
 
 export const scansApi = {
@@ -119,4 +122,35 @@ export const usersApi = {
 
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     apiClient.put('/users/me/password', data),
+};
+
+export const organizationsApi = {
+  get: () =>
+    apiClient.get('/organizations'),
+
+  update: (data: { name?: string; logo?: string | null; billingEmail?: string | null }) =>
+    apiClient.put('/organizations', data),
+
+  listMembers: () =>
+    apiClient.get('/organizations/members'),
+
+  inviteMember: (data: { email: string; role?: string }) =>
+    apiClient.post('/organizations/members', data),
+
+  updateMemberRole: (memberId: string, role: string) =>
+    apiClient.put(`/organizations/members/${memberId}`, { role }),
+
+  removeMember: (memberId: string) =>
+    apiClient.delete(`/organizations/members/${memberId}`),
+};
+
+export const apiKeysApi = {
+  list: () =>
+    apiClient.get('/api-keys'),
+
+  create: (data: { name: string; permissions?: string[]; expiresInDays?: number }) =>
+    apiClient.post('/api-keys', data),
+
+  revoke: (id: string) =>
+    apiClient.delete(`/api-keys/${id}`),
 };
