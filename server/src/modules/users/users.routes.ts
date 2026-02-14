@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { usersController } from './users.controller';
 import { validateBody } from '../../middleware/validate';
 import { authenticate } from '../../middleware/auth';
-import { updateProfileSchema, changePasswordSchema } from './users.schema';
+import { updateProfileSchema, changePasswordSchema, notificationPrefsSchema } from './users.schema';
 
 const router = Router();
 
@@ -12,5 +12,7 @@ router.use(authenticate);
 router.get('/me', usersController.getMe);
 router.put('/me', validateBody(updateProfileSchema), usersController.updateMe);
 router.put('/me/password', validateBody(changePasswordSchema), usersController.changePassword);
+router.get('/me/notification-preferences', usersController.getNotificationPrefs);
+router.put('/me/notification-preferences', validateBody(notificationPrefsSchema), usersController.updateNotificationPrefs);
 
 export default router;

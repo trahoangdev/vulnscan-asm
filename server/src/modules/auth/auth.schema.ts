@@ -56,3 +56,31 @@ export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+// OAuth schemas
+export const googleLoginSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required'),
+});
+
+export const githubLoginSchema = z.object({
+  code: z.string().min(1, 'GitHub authorization code is required'),
+});
+
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
+export type GitHubLoginInput = z.infer<typeof githubLoginSchema>;
+
+// 2FA schemas
+export const enable2faSchema = z.object({
+  token: z.string().length(6, 'TOTP token must be 6 digits'),
+});
+
+export const verify2faSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  token: z.string().length(6, 'TOTP token must be 6 digits'),
+});
+
+export const disable2faSchema = z.object({
+  token: z.string().length(6, 'TOTP token must be 6 digits'),
+  password: z.string().min(1),
+});

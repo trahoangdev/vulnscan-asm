@@ -153,6 +153,66 @@ export class OrganizationsService {
     await prisma.orgMember.delete({ where: { id: memberId } });
     return { message: 'Member removed successfully' };
   }
+
+  /**
+   * Get organization usage/quota statistics
+   */
+  async getUsage(orgId: string) {
+    const org = await prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw ApiError.notFound('Organization not found');
+
+    const [
+      targetsCount,
+      scansTotal,
+      scansThisMonth,
+      assetsCount,
+      openVulns,
+      membersCount,
+      reportsCount,
+      apiKeysCount,
+      webhooksCount,
+    ] = await Promise.all([
+      prisma.target.count({ where: { orgId } }),
+      prisma.scan.count({ where: { target: { orgId } } }),
+      prisma.scan.count({
+        where: {
+          target: { orgId },
+          createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+        },
+      }),
+      prisma.asset.count({ where: { target: { orgId } } }),
+      prisma.vulnFinding.count({
+        where: { scan: { target: { orgId } }, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      }),
+      prisma.orgMember.count({ where: { orgId } }),
+      prisma.report.count({ where: { orgId } }),
+      prisma.apiKey.count({ where: { orgId, isActive: true } }),
+      prisma.webhook.count({ where: { orgId, isActive: true } }),
+    ]);
+
+    return {
+      plan: org.plan,
+      limits: {
+        maxTargets: org.maxTargets,
+        maxScansPerMonth: org.maxScansPerMonth,
+      },
+      usage: {
+        targets: targetsCount,
+        scansThisMonth,
+        scansTotal,
+        assets: assetsCount,
+        openVulnerabilities: openVulns,
+        members: membersCount,
+        reports: reportsCount,
+        apiKeys: apiKeysCount,
+        webhooks: webhooksCount,
+      },
+      percentages: {
+        targets: org.maxTargets > 0 ? Math.round((targetsCount / org.maxTargets) * 100) : 0,
+        scans: org.maxScansPerMonth > 0 ? Math.round((scansThisMonth / org.maxScansPerMonth) * 100) : 0,
+      },
+    };
+  }
 }
 
 export const organizationsService = new OrganizationsService();

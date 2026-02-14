@@ -102,6 +102,83 @@ export class AuthController {
       next(error);
     }
   }
+
+  /**
+   * POST /auth/google — Google OAuth login
+   */
+  async googleLogin(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.googleLogin(req.body.idToken, getClientIp(req));
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /auth/github — GitHub OAuth login
+   */
+  async githubLogin(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.githubLogin(req.body.code, getClientIp(req));
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /auth/2fa/setup — Generate 2FA secret + QR code
+   */
+  async setup2fa(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.setup2fa(req.user!.userId);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /auth/2fa/enable — Verify TOTP and enable 2FA
+   */
+  async enable2fa(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.enable2fa(req.user!.userId, req.body.token);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /auth/2fa/disable — Disable 2FA
+   */
+  async disable2fa(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.disable2fa(req.user!.userId, req.body.token, req.body.password);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /auth/2fa/verify — Verify 2FA token during login
+   */
+  async verify2fa(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.verify2faLogin(
+        req.body.email,
+        req.body.password,
+        req.body.token,
+        getClientIp(req),
+      );
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const authController = new AuthController();

@@ -11,4 +11,14 @@ export const dashboardController = {
       next(error);
     }
   },
+
+  async getRiskTrend(req: Request, res: Response, next: NextFunction) {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const trend = await dashboardService.getRiskTrend(req.user!.orgId, days);
+      ApiResponse.success(res, trend);
+    } catch (error) {
+      next(error);
+    }
+  },
 };

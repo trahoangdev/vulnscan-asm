@@ -33,6 +33,7 @@ model User {
   resetTokenExp    DateTime?  @map("reset_token_exp")
   twoFactorEnabled Boolean    @default(false) @map("two_factor_enabled")
   twoFactorSecret  String?    @map("two_factor_secret")
+  notifyPrefs      Json?      @map("notify_prefs") // {emailCritical, emailWeekly, inApp, slack}
   timezone         String     @default("UTC")
   lastLoginAt      DateTime?  @map("last_login_at")
   lastLoginIp      String?    @map("last_login_ip")

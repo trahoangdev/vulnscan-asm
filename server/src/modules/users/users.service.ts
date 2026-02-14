@@ -98,6 +98,48 @@ export class UsersService {
 
     return { message: 'Password changed successfully' };
   }
+
+  /**
+   * Get notification preferences
+   */
+  async getNotificationPrefs(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { notifyPrefs: true },
+    });
+    if (!user) throw ApiError.notFound('User not found');
+
+    // Return defaults merged with saved prefs
+    const defaults = {
+      emailCritical: true,
+      emailHigh: true,
+      emailWeeklyDigest: true,
+      inAppEnabled: true,
+      scanCompleted: true,
+      scanFailed: true,
+      newVulnerability: true,
+      certExpiring: true,
+    };
+    return { ...defaults, ...(user.notifyPrefs as Record<string, any> || {}) };
+  }
+
+  /**
+   * Update notification preferences
+   */
+  async updateNotificationPrefs(userId: string, prefs: Record<string, any>) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { notifyPrefs: true },
+    });
+    if (!user) throw ApiError.notFound('User not found');
+
+    const merged = { ...(user.notifyPrefs as Record<string, any> || {}), ...prefs };
+    await prisma.user.update({
+      where: { id: userId },
+      data: { notifyPrefs: merged },
+    });
+    return merged;
+  }
 }
 
 export const usersService = new UsersService();

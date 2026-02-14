@@ -21,3 +21,16 @@ export const changePasswordSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+export const notificationPrefsSchema = z.object({
+  emailCritical: z.boolean().optional(),
+  emailHigh: z.boolean().optional(),
+  emailWeeklyDigest: z.boolean().optional(),
+  inAppEnabled: z.boolean().optional(),
+  scanCompleted: z.boolean().optional(),
+  scanFailed: z.boolean().optional(),
+  newVulnerability: z.boolean().optional(),
+  certExpiring: z.boolean().optional(),
+});
+
+export type NotificationPrefsInput = z.infer<typeof notificationPrefsSchema>;

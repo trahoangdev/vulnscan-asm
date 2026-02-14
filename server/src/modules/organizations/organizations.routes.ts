@@ -15,6 +15,7 @@ router.use(authenticate);
 // Organization settings
 router.get('/', organizationsController.getOrg);
 router.put('/', authorize('OWNER', 'ADMIN'), validateBody(updateOrgSchema), organizationsController.updateOrg);
+router.get('/usage', organizationsController.getUsage);
 
 // Team / Member management
 router.get('/members', organizationsController.listMembers);

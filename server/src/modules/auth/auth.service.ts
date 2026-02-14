@@ -13,12 +13,17 @@ import { generateSlug } from '../../utils/crypto';
 import { sendEmail, verificationEmailHtml, resetPasswordEmailHtml } from '../../utils/email';
 import { env } from '../../config/env';
 import { logger } from '../../utils/logger';
+import { OAuth2Client } from 'google-auth-library';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+import * as QRCode from 'qrcode';
 import type {
   RegisterInput,
   LoginInput,
   ForgotPasswordInput,
   ResetPasswordInput,
 } from './auth.schema';
+
+const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID);
 
 export class AuthService {
   /**
@@ -116,6 +121,14 @@ export class AuthService {
     const isPasswordValid = await comparePassword(data.password, user.passwordHash);
     if (!isPasswordValid) {
       throw ApiError.unauthorized('Invalid email or password');
+    }
+
+    // If 2FA enabled, return a flag instead of tokens
+    if (user.twoFactorEnabled) {
+      return {
+        requires2fa: true,
+        message: 'Two-factor authentication required',
+      };
     }
 
     // Get primary organization
@@ -343,6 +356,349 @@ export class AuthService {
         ...m.organization,
         role: m.role,
       })),
+    };
+  }
+
+  // ======== OAuth Login ========
+
+  // ======== Two-Factor Authentication ========
+
+  /**
+   * Generate a 2FA secret + QR code for the user to scan
+   */
+  async setup2fa(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw ApiError.notFound('User not found');
+    if (user.twoFactorEnabled) throw ApiError.badRequest('2FA is already enabled');
+
+    const secret = generateSecret();
+
+    // Save secret (but don't enable yet until verified)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorSecret: secret },
+    });
+
+    const otpauth = generateURI({ secret, issuer: env.APP_NAME, label: user.email });
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauth);
+
+    return {
+      secret,
+      qrCode: qrCodeDataUrl,
+      otpauth,
+    };
+  }
+
+  /**
+   * Verify a TOTP token and enable 2FA
+   */
+  async enable2fa(userId: string, token: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw ApiError.notFound('User not found');
+    if (user.twoFactorEnabled) throw ApiError.badRequest('2FA is already enabled');
+    if (!user.twoFactorSecret) throw ApiError.badRequest('Call setup-2fa first');
+
+    const result = verifySync({ token, secret: user.twoFactorSecret });
+    if (!result.valid) throw ApiError.badRequest('Invalid TOTP token');
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: true },
+    });
+
+    return { message: '2FA enabled successfully' };
+  }
+
+  /**
+   * Disable 2FA
+   */
+  async disable2fa(userId: string, token: string, password: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw ApiError.notFound('User not found');
+    if (!user.twoFactorEnabled) throw ApiError.badRequest('2FA is not enabled');
+
+    // Verify password
+    if (user.passwordHash) {
+      const isPasswordValid = await comparePassword(password, user.passwordHash);
+      if (!isPasswordValid) throw ApiError.unauthorized('Invalid password');
+    }
+
+    // Verify TOTP
+    if (!user.twoFactorSecret) throw ApiError.badRequest('No 2FA secret found');
+    const result = verifySync({ token, secret: user.twoFactorSecret });
+    if (!result.valid) throw ApiError.badRequest('Invalid TOTP token');
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: false, twoFactorSecret: null },
+    });
+
+    return { message: '2FA disabled successfully' };
+  }
+
+  /**
+   * Verify 2FA during login (called after password check)
+   */
+  async verify2faLogin(email: string, password: string, token: string, clientIp: string) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        orgMemberships: { include: { organization: true }, take: 1 },
+      },
+    });
+
+    if (!user || !user.passwordHash) throw ApiError.unauthorized('Invalid credentials');
+    if (!user.isActive) throw ApiError.forbidden('Account is deactivated');
+
+    const isPasswordValid = await comparePassword(password, user.passwordHash);
+    if (!isPasswordValid) throw ApiError.unauthorized('Invalid credentials');
+
+    if (!user.twoFactorEnabled || !user.twoFactorSecret) {
+      throw ApiError.badRequest('2FA is not enabled for this account');
+    }
+
+    const totpResult = verifySync({ token, secret: user.twoFactorSecret });
+    if (!totpResult.valid) throw ApiError.unauthorized('Invalid 2FA token');
+
+    const orgMembership = user.orgMemberships[0];
+    if (!orgMembership) throw ApiError.internal('User has no organization');
+
+    const tokenPayload: TokenPayload = {
+      userId: user.id,
+      email: user.email,
+      orgId: orgMembership.orgId,
+      systemRole: user.systemRole,
+    };
+
+    const accessToken = generateAccessToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), lastLoginIp: clientIp },
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: 900,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        emailVerified: user.emailVerified,
+        systemRole: user.systemRole,
+        twoFactorEnabled: true,
+        organization: {
+          id: orgMembership.organization.id,
+          name: orgMembership.organization.name,
+          plan: orgMembership.organization.plan,
+        },
+      },
+    };
+  }
+
+  /**
+   * Google OAuth login — verify Google ID token, create/link account, return JWT
+   */
+  async googleLogin(idToken: string, clientIp: string) {
+    let payload: any;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw ApiError.unauthorized('Invalid Google token');
+    }
+
+    if (!payload || !payload.email) {
+      throw ApiError.unauthorized('Google token missing email');
+    }
+
+    return this.oauthUpsert({
+      provider: 'google',
+      providerId: payload.sub,
+      email: payload.email,
+      name: payload.name || payload.email.split('@')[0],
+      avatar: payload.picture || null,
+      emailVerified: !!payload.email_verified,
+      clientIp,
+    });
+  }
+
+  /**
+   * GitHub OAuth login — exchange code for access token, fetch profile, return JWT
+   */
+  async githubLogin(code: string, clientIp: string) {
+    // Exchange code for access token
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        client_id: env.GITHUB_CLIENT_ID,
+        client_secret: env.GITHUB_CLIENT_SECRET,
+        code,
+      }),
+    });
+    const tokenData = (await tokenRes.json()) as any;
+
+    if (!tokenData.access_token) {
+      throw ApiError.unauthorized('Invalid GitHub code');
+    }
+
+    // Fetch user profile
+    const [userRes, emailsRes] = await Promise.all([
+      fetch('https://api.github.com/user', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: 'application/json' },
+      }),
+      fetch('https://api.github.com/user/emails', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: 'application/json' },
+      }),
+    ]);
+
+    const ghUser = (await userRes.json()) as any;
+    const ghEmails = (await emailsRes.json()) as any[];
+
+    // Find primary verified email
+    const primaryEmail = ghEmails?.find((e: any) => e.primary && e.verified)?.email
+      || ghEmails?.find((e: any) => e.verified)?.email
+      || ghUser.email;
+
+    if (!primaryEmail) {
+      throw ApiError.badRequest('GitHub account has no verified email');
+    }
+
+    return this.oauthUpsert({
+      provider: 'github',
+      providerId: String(ghUser.id),
+      email: primaryEmail,
+      name: ghUser.name || ghUser.login,
+      avatar: ghUser.avatar_url || null,
+      emailVerified: true,
+      clientIp,
+    });
+  }
+
+  /**
+   * Internal: upsert user from OAuth provider
+   */
+  private async oauthUpsert(data: {
+    provider: string;
+    providerId: string;
+    email: string;
+    name: string;
+    avatar: string | null;
+    emailVerified: boolean;
+    clientIp: string;
+  }) {
+    // Check if OAuth account already linked
+    let oauthAccount = await prisma.oAuthAccount.findUnique({
+      where: { provider_providerId: { provider: data.provider, providerId: data.providerId } },
+      include: { user: { include: { orgMemberships: { include: { organization: true }, take: 1 } } } },
+    });
+
+    let user: any;
+
+    if (oauthAccount) {
+      // Existing OAuth link → login
+      user = oauthAccount.user;
+    } else {
+      // Try to find user by email
+      const existingUser = await prisma.user.findUnique({
+        where: { email: data.email },
+        include: { orgMemberships: { include: { organization: true }, take: 1 } },
+      });
+
+      if (existingUser) {
+        // Link OAuth to existing account
+        await prisma.oAuthAccount.create({
+          data: {
+            userId: existingUser.id,
+            provider: data.provider,
+            providerId: data.providerId,
+          },
+        });
+        user = existingUser;
+      } else {
+        // Brand new user — create account + org
+        const result = await prisma.$transaction(async (tx) => {
+          const orgName = `${data.name}'s Organization`;
+          const org = await tx.organization.create({
+            data: { name: orgName, slug: generateSlug(orgName) },
+          });
+
+          const newUser = await tx.user.create({
+            data: {
+              email: data.email,
+              name: data.name,
+              avatar: data.avatar,
+              emailVerified: data.emailVerified,
+              lastLoginIp: data.clientIp,
+            },
+          });
+
+          await tx.orgMember.create({
+            data: { userId: newUser.id, orgId: org.id, role: 'OWNER' },
+          });
+
+          await tx.oAuthAccount.create({
+            data: {
+              userId: newUser.id,
+              provider: data.provider,
+              providerId: data.providerId,
+            },
+          });
+
+          return { user: newUser, org };
+        });
+
+        user = await prisma.user.findUnique({
+          where: { id: result.user.id },
+          include: { orgMemberships: { include: { organization: true }, take: 1 } },
+        });
+      }
+    }
+
+    if (!user || !user.isActive) {
+      throw ApiError.forbidden('Account is deactivated');
+    }
+
+    const orgMembership = user.orgMemberships?.[0];
+    if (!orgMembership) throw ApiError.internal('User has no organization');
+
+    const tokenPayload: TokenPayload = {
+      userId: user.id,
+      email: user.email,
+      orgId: orgMembership.orgId,
+      systemRole: user.systemRole,
+    };
+
+    const accessToken = generateAccessToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), lastLoginIp: data.clientIp },
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: 900,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        emailVerified: user.emailVerified,
+        systemRole: user.systemRole,
+        organization: {
+          id: orgMembership.organization.id,
+          name: orgMembership.organization.name,
+          plan: orgMembership.organization.plan,
+        },
+      },
     };
   }
 }

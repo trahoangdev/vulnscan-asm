@@ -7,5 +7,6 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/stats', dashboardController.getStats);
+router.get('/risk-trend', dashboardController.getRiskTrend);
 
 export default router;

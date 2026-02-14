@@ -1,6 +1,8 @@
 import prisma from '../../config/database';
 import { ApiError } from '../../utils/ApiError';
 import { parsePagination, parseSort } from '../../utils/helpers';
+import { redis } from '../../config/redis';
+import { logger } from '../../utils/logger';
 
 export class VulnerabilitiesService {
   /**
@@ -180,6 +182,74 @@ export class VulnerabilitiesService {
     }
 
     return { data: findings, format: 'JSON', count: findings.length };
+  }
+
+  /**
+   * Re-scan to verify if a vulnerability has been fixed
+   * Creates a targeted scan job for the specific vulnerability
+   */
+  async reverify(orgId: string, findingId: string, userId: string) {
+    const finding = await prisma.vulnFinding.findFirst({
+      where: {
+        id: findingId,
+        scan: { target: { orgId } },
+      },
+      include: {
+        asset: { select: { id: true, value: true, type: true } },
+        scan: {
+          select: {
+            id: true,
+            targetId: true,
+            target: { select: { id: true, value: true, type: true } },
+          },
+        },
+      },
+    });
+
+    if (!finding) throw ApiError.notFound('Finding not found');
+
+    // Create a quick scan for this target focused on this vulnerability category
+    const scan = await prisma.scan.create({
+      data: {
+        targetId: finding.scan.targetId,
+        createdById: userId,
+        type: 'ON_DEMAND',
+        profile: 'QUICK',
+        status: 'QUEUED',
+        modules: [finding.category.toLowerCase()],
+      },
+    });
+
+    // Mark the finding as IN_PROGRESS
+    await prisma.vulnFinding.update({
+      where: { id: findingId },
+      data: { status: 'IN_PROGRESS' },
+    });
+
+    // Queue the re-verify scan job
+    try {
+      await redis.rpush(
+        'vulnscan:scan_queue',
+        JSON.stringify({
+          scanId: scan.id,
+          targetValue: finding.scan.target.value,
+          targetType: finding.scan.target.type,
+          profile: 'QUICK',
+          modules: [finding.category.toLowerCase()],
+          isReverify: true,
+          reverifyFindingId: findingId,
+        }),
+      );
+    } catch (err) {
+      logger.error('Failed to queue re-verify scan', err);
+    }
+
+    return {
+      message: 'Re-verification scan queued',
+      scanId: scan.id,
+      findingId,
+      status: 'QUEUED',
+    };
   }
 }
 

@@ -115,6 +115,103 @@ export class TargetsService {
   }
 
   /**
+   * Bulk import targets from CSV data
+   * CSV format: value,type,label,scanProfile,tags (header row optional)
+   */
+  async bulkImport(orgId: string, csvData: string) {
+    const lines = csvData
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length === 0) throw ApiError.badRequest('CSV file is empty');
+
+    // Detect header row
+    const firstLine = lines[0].toLowerCase();
+    const hasHeader = firstLine.includes('value') || firstLine.includes('domain') || firstLine.includes('target');
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+
+    if (dataLines.length === 0) throw ApiError.badRequest('No data rows in CSV');
+
+    // Check org quota
+    const org = await prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw ApiError.notFound('Organization not found');
+
+    const currentTargets = await prisma.target.count({ where: { orgId, isActive: true } });
+    const planLimit = PLAN_LIMITS[org.plan as keyof typeof PLAN_LIMITS].maxTargets;
+
+    if (planLimit !== -1 && currentTargets + dataLines.length > planLimit) {
+      throw ApiError.forbidden(
+        `Import would exceed target limit (${planLimit}). Current: ${currentTargets}, Importing: ${dataLines.length}.`,
+      );
+    }
+
+    const results: { success: any[]; errors: { line: number; value: string; error: string }[] } = {
+      success: [],
+      errors: [],
+    };
+
+    for (let i = 0; i < dataLines.length; i++) {
+      const cols = dataLines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+      const value = cols[0];
+      const type = (['DOMAIN', 'IP', 'CIDR'].includes(cols[1]?.toUpperCase()) ? cols[1].toUpperCase() : 'DOMAIN') as 'DOMAIN' | 'IP' | 'CIDR';
+      const label = cols[2] || undefined;
+      const scanProfile = (['QUICK', 'STANDARD', 'DEEP'].includes(cols[3]?.toUpperCase()) ? cols[3].toUpperCase() : 'STANDARD') as any;
+      const tags = cols[4] ? cols[4].split(';').map((t) => t.trim()).filter(Boolean) : [];
+
+      if (!value) {
+        results.errors.push({ line: i + 1, value: '', error: 'Empty value' });
+        continue;
+      }
+
+      if (type === 'DOMAIN' && !isValidDomain(value)) {
+        results.errors.push({ line: i + 1, value, error: 'Invalid domain format' });
+        continue;
+      }
+      if (type === 'IP' && !isValidIp(value)) {
+        results.errors.push({ line: i + 1, value, error: 'Invalid IP format' });
+        continue;
+      }
+
+      // Check duplicate
+      const existing = await prisma.target.findUnique({
+        where: { orgId_value: { orgId, value } },
+      });
+      if (existing) {
+        results.errors.push({ line: i + 1, value, error: 'Target already exists' });
+        continue;
+      }
+
+      try {
+        const verificationToken = generateVerificationToken();
+        const target = await prisma.target.create({
+          data: {
+            orgId,
+            type,
+            value,
+            label,
+            scanProfile,
+            tags,
+            verificationToken,
+          },
+        });
+        results.success.push({ id: target.id, value: target.value, type: target.type });
+      } catch (err: any) {
+        results.errors.push({ line: i + 1, value, error: err.message || 'Unknown error' });
+      }
+    }
+
+    return {
+      imported: results.success.length,
+      failed: results.errors.length,
+      total: dataLines.length,
+      targets: results.success,
+      errors: results.errors,
+    };
+  }
+
+  /**
    * Get target by ID
    */
   async getById(orgId: string, targetId: string) {

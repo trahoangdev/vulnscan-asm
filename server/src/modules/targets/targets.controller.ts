@@ -137,6 +137,22 @@ export class TargetsController {
       next(error);
     }
   }
+
+  /**
+   * POST /targets/import — Bulk import targets from CSV
+   */
+  async bulkImport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const csvData = req.body.csv || req.body.data;
+      if (!csvData || typeof csvData !== 'string') {
+        return ApiResponse.error(res, 'CSV data is required in the "csv" field', 400);
+      }
+      const result = await targetsService.bulkImport(req.user!.orgId, csvData);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const targetsController = new TargetsController();

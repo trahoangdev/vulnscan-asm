@@ -64,6 +64,19 @@ export class VulnerabilitiesController {
       next(error);
     }
   }
+
+  async reverify(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await vulnerabilitiesService.reverify(
+        req.user!.orgId,
+        req.params.id,
+        req.user!.userId,
+      );
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const vulnerabilitiesController = new VulnerabilitiesController();

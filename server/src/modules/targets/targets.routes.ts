@@ -10,6 +10,7 @@ router.use(authenticate);
 
 router.get('/', targetsController.list);
 router.post('/', validateBody(createTargetSchema), targetsController.create);
+router.post('/import', targetsController.bulkImport);
 router.get('/:id', targetsController.getById);
 router.put('/:id', validateBody(updateTargetSchema), targetsController.update);
 router.delete('/:id', targetsController.delete);

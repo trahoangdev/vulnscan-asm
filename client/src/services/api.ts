@@ -7,6 +7,9 @@ export const targetsApi = {
   create: (data: { type: string; value: string; label?: string; scanProfile?: string; tags?: string[] }) =>
     apiClient.post('/targets', data),
 
+  bulkImport: (csv: string) =>
+    apiClient.post('/targets/import', { csv }),
+
   getById: (id: string) =>
     apiClient.get(`/targets/${id}`),
 
@@ -70,6 +73,9 @@ export const vulnerabilitiesApi = {
 
   exportFindings: (params?: Record<string, any>) =>
     apiClient.get('/vulnerabilities/export', { params, responseType: params?.format === 'csv' ? 'blob' : 'json' }),
+
+  reverify: (id: string) =>
+    apiClient.post(`/vulnerabilities/${id}/reverify`),
 };
 
 export const notificationsApi = {
@@ -89,6 +95,9 @@ export const notificationsApi = {
 export const dashboardApi = {
   getStats: () =>
     apiClient.get('/dashboard/stats'),
+
+  getRiskTrend: (days: number = 30) =>
+    apiClient.get('/dashboard/risk-trend', { params: { days } }),
 };
 
 export const assetsApi = {
@@ -128,6 +137,12 @@ export const usersApi = {
 
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     apiClient.put('/users/me/password', data),
+
+  getNotificationPrefs: () =>
+    apiClient.get('/users/me/notification-preferences'),
+
+  updateNotificationPrefs: (prefs: Record<string, boolean>) =>
+    apiClient.put('/users/me/notification-preferences', prefs),
 };
 
 export const organizationsApi = {
@@ -136,6 +151,9 @@ export const organizationsApi = {
 
   update: (data: { name?: string; logo?: string | null; billingEmail?: string | null }) =>
     apiClient.put('/organizations', data),
+
+  getUsage: () =>
+    apiClient.get('/organizations/usage'),
 
   listMembers: () =>
     apiClient.get('/organizations/members'),
