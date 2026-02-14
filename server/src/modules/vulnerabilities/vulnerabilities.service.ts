@@ -138,6 +138,49 @@ export class VulnerabilitiesService {
       byCategory,
     };
   }
+
+  /**
+   * Export all findings for an organization as CSV or JSON
+   */
+  async exportFindings(orgId: string, query: Record<string, any>) {
+    const where: any = {
+      scan: { target: { orgId } },
+    };
+    if (query.severity) where.severity = { in: (query.severity as string).split(',') };
+    if (query.status) where.status = query.status;
+    if (query.category) where.category = query.category;
+    if (query.targetId) where.scan = { ...where.scan, targetId: query.targetId };
+
+    const findings = await prisma.vulnFinding.findMany({
+      where,
+      orderBy: [{ severity: 'asc' }, { cvssScore: 'desc' }],
+      include: {
+        scan: { select: { target: { select: { value: true } } } },
+      },
+    });
+
+    const format = (query.format as string)?.toUpperCase() === 'CSV' ? 'CSV' : 'JSON';
+
+    if (format === 'CSV') {
+      const headers = ['Title', 'Severity', 'CVSS', 'Category', 'OWASP', 'Status', 'Affected URL', 'Target', 'Description', 'Remediation'];
+      const rows = findings.map((f) => [
+        `"${(f.title || '').replace(/"/g, '""')}"`,
+        f.severity,
+        f.cvssScore ?? '',
+        f.category,
+        f.owaspCategory ?? '',
+        f.status,
+        `"${(f.affectedUrl || '').replace(/"/g, '""')}"`,
+        `"${(f.scan?.target?.value || '').replace(/"/g, '""')}"`,
+        `"${(f.description || '').replace(/"/g, '""')}"`,
+        `"${(f.remediation || '').replace(/"/g, '""')}"`,
+      ]);
+      const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      return { data: csv, format: 'CSV', count: findings.length };
+    }
+
+    return { data: findings, format: 'JSON', count: findings.length };
+  }
 }
 
 export const vulnerabilitiesService = new VulnerabilitiesService();

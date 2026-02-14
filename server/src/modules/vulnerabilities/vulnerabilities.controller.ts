@@ -45,6 +45,25 @@ export class VulnerabilitiesController {
       next(error);
     }
   }
+
+  async exportFindings(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await vulnerabilitiesService.exportFindings(
+        req.user!.orgId,
+        req.query as Record<string, any>,
+      );
+
+      if (result.format === 'CSV') {
+        res.setHeader('Content-Disposition', 'attachment; filename="vulnerabilities.csv"');
+        res.setHeader('Content-Type', 'text/csv');
+        return res.send(result.data);
+      }
+
+      return ApiResponse.success(res, { findings: result.data, count: result.count });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const vulnerabilitiesController = new VulnerabilitiesController();

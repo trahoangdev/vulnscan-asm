@@ -97,10 +97,11 @@ model Organization {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   // Relations
-  members OrgMember[]
-  targets Target[]
-  apiKeys ApiKey[]
-  reports Report[]
+  members  OrgMember[]
+  targets  Target[]
+  apiKeys  ApiKey[]
+  reports  Report[]
+  webhooks Webhook[]
 
   @@map("organizations")
 }
@@ -418,6 +419,30 @@ model Report {
 
   @@index([orgId])
   @@map("reports")
+}
+
+// =============================================
+// WEBHOOKS
+// =============================================
+
+model Webhook {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  name      String
+  url       String
+  secret    String?
+  events    String[] @default([])
+  headers   Json?
+  isActive  Boolean  @default(true) @map("is_active")
+  lastError String?  @map("last_error")
+  lastTriggeredAt DateTime? @map("last_triggered_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("webhooks")
 }
 
 enum ReportType {

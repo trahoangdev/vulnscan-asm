@@ -2,6 +2,8 @@ import prisma from '../config/database';
 import { scanQueue } from '../config/queue';
 import { logger } from '../utils/logger';
 import { SCAN_PROFILES, PLAN_LIMITS } from '../../../shared/constants/index';
+import { sendEmail, weeklyDigestEmailHtml } from '../utils/email';
+import { env } from '../config/env';
 
 /**
  * Scan scheduler — checks targets with configured schedules
@@ -143,6 +145,106 @@ async function processDueScans() {
 }
 
 /**
+ * Send weekly digest emails to all org members
+ * Runs once per week (checked every tick, tracked via lastDigestSent)
+ */
+let lastDigestSent: Date | null = null;
+
+async function processWeeklyDigest() {
+  const now = new Date();
+  const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 1 = Monday...
+  const hour = now.getUTCHours();
+
+  // Send on Monday at ~8:00 UTC
+  if (dayOfWeek !== 1 || hour !== 8) return;
+
+  // Deduplicate: only once per day
+  if (lastDigestSent && (now.getTime() - lastDigestSent.getTime()) < 23 * 60 * 60 * 1000) return;
+
+  logger.info('📊 Weekly digest: Starting');
+  lastDigestSent = now;
+
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  try {
+    const orgs = await prisma.organization.findMany({
+      where: { isActive: true },
+      include: {
+        members: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
+      },
+    });
+
+    for (const org of orgs) {
+      try {
+        // Gather stats for the past week
+        const [scansRun, newFindings, fixedFindings, openFindings, newAssets] = await Promise.all([
+          prisma.scan.count({
+            where: { target: { orgId: org.id }, status: 'COMPLETED', completedAt: { gte: oneWeekAgo } },
+          }),
+          prisma.vulnFinding.count({
+            where: { scan: { target: { orgId: org.id } }, firstFoundAt: { gte: oneWeekAgo } },
+          }),
+          prisma.vulnFinding.count({
+            where: { scan: { target: { orgId: org.id } }, status: 'FIXED', resolvedAt: { gte: oneWeekAgo } },
+          }),
+          prisma.vulnFinding.groupBy({
+            by: ['severity'],
+            where: { scan: { target: { orgId: org.id } }, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+            _count: true,
+          }),
+          prisma.asset.count({
+            where: { target: { orgId: org.id }, firstSeenAt: { gte: oneWeekAgo } },
+          }),
+        ]);
+
+        const criticalOpen = openFindings.find((g) => g.severity === 'CRITICAL')?._count || 0;
+        const highOpen = openFindings.find((g) => g.severity === 'HIGH')?._count || 0;
+        const totalOpen = openFindings.reduce((acc, g) => acc + g._count, 0);
+
+        const stats = { newFindings, fixedFindings, criticalOpen, highOpen, totalOpen, scansRun, newAssets };
+
+        // Skip if no activity and no open findings
+        if (scansRun === 0 && newFindings === 0 && totalOpen === 0) continue;
+
+        const dashboardUrl = `${env.CLIENT_URL}/dashboard`;
+
+        for (const member of org.members) {
+          try {
+            // Create in-app notification
+            await prisma.notification.create({
+              data: {
+                userId: member.user.id,
+                type: 'WEEKLY_DIGEST',
+                title: `📊 Weekly Digest: ${newFindings} new, ${fixedFindings} fixed`,
+                message: `${org.name} — ${totalOpen} open findings (${criticalOpen} critical, ${highOpen} high). ${scansRun} scans this week.`,
+                data: stats as any,
+              },
+            });
+
+            // Send email
+            await sendEmail({
+              to: member.user.email,
+              subject: `[${env.APP_NAME}] Weekly Security Digest — ${org.name}`,
+              html: weeklyDigestEmailHtml(member.user.name, org.name, stats, dashboardUrl),
+            });
+          } catch (memberErr) {
+            logger.warn(`Digest: Failed for user ${member.user.id}`, memberErr);
+          }
+        }
+
+        logger.info(`📊 Digest sent for org ${org.name} (${org.members.length} members)`);
+      } catch (orgErr) {
+        logger.warn(`Digest: Failed for org ${org.id}`, orgErr);
+      }
+    }
+  } catch (err) {
+    logger.error('Weekly digest failed', err);
+  }
+}
+
+/**
  * Start the scan scheduler — runs every 60 seconds
  */
 let schedulerInterval: NodeJS.Timeout | null = null;
@@ -161,6 +263,9 @@ export function startScanScheduler() {
   schedulerInterval = setInterval(() => {
     processDueScans().catch((err) => {
       logger.error('Scheduler: Tick failed', err);
+    });
+    processWeeklyDigest().catch((err) => {
+      logger.error('Scheduler: Weekly digest tick failed', err);
     });
   }, 60 * 1000);
 }

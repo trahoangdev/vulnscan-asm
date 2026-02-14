@@ -50,6 +50,9 @@ export const scansApi = {
 
   getResults: (id: string) =>
     apiClient.get(`/scans/${id}/results`),
+
+  diff: (id: string) =>
+    apiClient.get(`/scans/${id}/diff`),
 };
 
 export const vulnerabilitiesApi = {
@@ -64,6 +67,9 @@ export const vulnerabilitiesApi = {
 
   getStats: () =>
     apiClient.get('/vulnerabilities/stats'),
+
+  exportFindings: (params?: Record<string, any>) =>
+    apiClient.get('/vulnerabilities/export', { params, responseType: params?.format === 'csv' ? 'blob' : 'json' }),
 };
 
 export const notificationsApi = {
@@ -153,4 +159,24 @@ export const apiKeysApi = {
 
   revoke: (id: string) =>
     apiClient.delete(`/api-keys/${id}`),
+};
+
+export const webhooksApi = {
+  list: (params?: Record<string, any>) =>
+    apiClient.get('/webhooks', { params }),
+
+  getById: (id: string) =>
+    apiClient.get(`/webhooks/${id}`),
+
+  create: (data: { name: string; url: string; secret?: string; events: string[] }) =>
+    apiClient.post('/webhooks', data),
+
+  update: (id: string, data: Record<string, any>) =>
+    apiClient.put(`/webhooks/${id}`, data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/webhooks/${id}`),
+
+  test: (id: string) =>
+    apiClient.post(`/webhooks/${id}/test`),
 };

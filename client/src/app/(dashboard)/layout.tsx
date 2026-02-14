@@ -27,6 +27,7 @@ import {
   Radio,
   Users,
   Key,
+  Webhook,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,7 @@ const navigation = [
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Team', href: '/dashboard/team', icon: Users },
   { name: 'API Keys', href: '/dashboard/api-keys', icon: Key },
+  { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook },
 ];
 
 const bottomNav = [

@@ -4,6 +4,7 @@ import { prisma } from '@config/database';
 import { logger } from '@utils/logger';
 import { sendEmail, securityAlertEmailHtml } from '@utils/email';
 import { emitScanCompleted, emitScanFailed, emitScanProgress, emitNotification } from '../socket';
+import { webhooksService } from '../modules/webhooks/webhooks.service';
 import { env } from '@config/env';
 
 interface ScanJobData {
@@ -277,6 +278,27 @@ async function subscribeScanResults() {
           assetsFound: assets?.length || 0,
           vulnsFound: findings?.length || 0,
         });
+
+        // Dispatch webhooks
+        try {
+          await webhooksService.dispatch(scan.target.orgId, 'scan.completed', {
+            scanId, targetValue: scan.target.value,
+            assetsFound: assets?.length || 0, vulnsFound: findings?.length || 0,
+            criticalCount: severityCounts.critical, highCount: severityCounts.high,
+          });
+          if (severityCounts.critical > 0) {
+            await webhooksService.dispatch(scan.target.orgId, 'vulnerability.critical', {
+              scanId, targetValue: scan.target.value, count: severityCounts.critical,
+            });
+          }
+          if (severityCounts.high > 0) {
+            await webhooksService.dispatch(scan.target.orgId, 'vulnerability.high', {
+              scanId, targetValue: scan.target.value, count: severityCounts.high,
+            });
+          }
+        } catch (whErr) {
+          log.warn('Webhook dispatch failed', { error: whErr instanceof Error ? whErr.message : 'Unknown' });
+        }
 
         // Notify users about critical/high severity findings
         const criticalFindings = (findings || []).filter(

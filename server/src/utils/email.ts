@@ -88,7 +88,71 @@ export function resetPasswordEmailHtml(name: string, resetUrl: string): string {
   `;
 }
 
-export function securityAlertEmailHtml(
+/**
+ * Weekly digest email template
+ */
+export function weeklyDigestEmailHtml(
+  name: string,
+  orgName: string,
+  stats: {
+    newFindings: number;
+    fixedFindings: number;
+    criticalOpen: number;
+    highOpen: number;
+    totalOpen: number;
+    scansRun: number;
+    newAssets: number;
+  },
+  dashboardUrl: string,
+): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1e40af;">📊 Weekly Security Digest — ${env.APP_NAME}</h2>
+      <p>Hi ${name},</p>
+      <p>Here's your weekly security summary for <strong>${orgName}</strong>:</p>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <tr>
+          <td style="padding: 14px; text-align: center; background: #fef2f2; border-radius: 8px;">
+            <div style="font-size: 28px; font-weight: 700; color: #ef4444;">${stats.criticalOpen}</div>
+            <div style="font-size: 12px; color: #6b7280;">Critical Open</div>
+          </td>
+          <td style="width: 8px;"></td>
+          <td style="padding: 14px; text-align: center; background: #fff7ed; border-radius: 8px;">
+            <div style="font-size: 28px; font-weight: 700; color: #f97316;">${stats.highOpen}</div>
+            <div style="font-size: 12px; color: #6b7280;">High Open</div>
+          </td>
+          <td style="width: 8px;"></td>
+          <td style="padding: 14px; text-align: center; background: #eff6ff; border-radius: 8px;">
+            <div style="font-size: 28px; font-weight: 700; color: #2563eb;">${stats.totalOpen}</div>
+            <div style="font-size: 12px; color: #6b7280;">Total Open</div>
+          </td>
+        </tr>
+      </table>
+
+      <h3 style="color: #374151;">This Week's Activity</h3>
+      <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px;">
+        <tr><td style="padding: 6px 0;">🔍 Scans completed</td><td style="text-align: right; font-weight: 600;">${stats.scansRun}</td></tr>
+        <tr><td style="padding: 6px 0;">🆕 New findings</td><td style="text-align: right; font-weight: 600; color: #ef4444;">${stats.newFindings}</td></tr>
+        <tr><td style="padding: 6px 0;">✅ Fixed findings</td><td style="text-align: right; font-weight: 600; color: #16a34a;">${stats.fixedFindings}</td></tr>
+        <tr><td style="padding: 6px 0;">🌐 New assets discovered</td><td style="text-align: right; font-weight: 600;">${stats.newAssets}</td></tr>
+      </table>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardUrl}"
+           style="background-color: #2563eb; color: white; padding: 12px 30px;
+                  text-decoration: none; border-radius: 6px; font-weight: bold;">
+          View Dashboard
+        </a>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+      <p style="color: #9ca3af; font-size: 12px;">
+        © ${new Date().getFullYear()} ${env.APP_NAME}. All rights reserved.
+      </p>
+    </div>
+  `;
+}export function securityAlertEmailHtml(
   name: string,
   target: string,
   findings: Array<{ title: string; severity: string; category: string }>,

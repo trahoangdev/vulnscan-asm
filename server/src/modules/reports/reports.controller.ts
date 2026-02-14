@@ -45,13 +45,16 @@ export class ReportsController {
   async download(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await reportsService.download(req.user!.orgId, req.params.id);
-      if (result.data) {
-        const filename = `${result.title.replace(/[^a-zA-Z0-9-_]/g, '_')}.json`;
+
+      if ('buffer' in result) {
+        const filename = `${result.title.replace(/[^a-zA-Z0-9-_]/g, '_')}.${result.ext}`;
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Type', 'application/json');
-        return res.json(result.data);
+        res.setHeader('Content-Type', result.mime);
+        res.setHeader('Content-Length', result.buffer.length);
+        return res.send(result.buffer);
       }
-      // Future: redirect to S3 URL
+
+      // S3/MinIO URL redirect
       return ApiResponse.success(res, { url: result.url });
     } catch (error) {
       next(error);

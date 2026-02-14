@@ -15,5 +15,6 @@ router.get('/:id', scansController.getById);
 router.post('/:id/cancel', scansController.cancel);
 router.get('/:id/findings', scansController.getFindings);
 router.get('/:id/results', scansController.getResults);
+router.get('/:id/diff', scansController.diff);
 
 export default router;

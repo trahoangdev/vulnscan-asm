@@ -46,6 +46,7 @@ const reportTypes = [
 ];
 
 const formatOptions = [
+  { value: 'PDF', label: 'PDF', icon: FileText },
   { value: 'JSON', label: 'JSON', icon: FileJson },
   { value: 'CSV', label: 'CSV', icon: FileSpreadsheet },
   { value: 'HTML', label: 'HTML', icon: FileCode2 },
@@ -64,9 +65,17 @@ const statusColors: Record<string, string> = {
 };
 
 const formatExtensions: Record<string, string> = {
+  PDF: '.pdf',
   JSON: '.json',
   CSV: '.csv',
   HTML: '.html',
+};
+
+const formatMimes: Record<string, string> = {
+  PDF: 'application/pdf',
+  JSON: 'application/json',
+  CSV: 'text/csv',
+  HTML: 'text/html',
 };
 
 export default function ReportsPage() {
@@ -75,7 +84,7 @@ export default function ReportsPage() {
   const [newReport, setNewReport] = useState({
     type: 'EXECUTIVE_SUMMARY',
     title: '',
-    format: 'JSON',
+    format: 'PDF',
   });
 
   const { data, isLoading } = useQuery({
@@ -89,7 +98,7 @@ export default function ReportsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       setCreateOpen(false);
-      setNewReport({ type: 'EXECUTIVE_SUMMARY', title: '', format: 'JSON' });
+      setNewReport({ type: 'EXECUTIVE_SUMMARY', title: '', format: 'PDF' });
       toast.success('Report generation started');
     },
     onError: () => toast.error('Failed to generate report'),
@@ -114,11 +123,15 @@ export default function ReportsPage() {
   const handleDownload = async (report: any) => {
     try {
       const response = await reportsApi.download(report.id);
+      const mime = formatMimes[report.format] || 'application/octet-stream';
       const blob = response.data instanceof Blob
         ? response.data
-        : new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+        : new Blob(
+            [report.format === 'JSON' ? JSON.stringify(response.data, null, 2) : response.data],
+            { type: mime },
+          );
 
-      const ext = formatExtensions[report.format] || '.json';
+      const ext = formatExtensions[report.format] || '.pdf';
       const filename = `${report.title.replace(/\s+/g, '_')}${ext}`;
 
       const url = window.URL.createObjectURL(blob);

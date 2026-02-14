@@ -233,6 +233,76 @@ export class ScansService {
 
     return results;
   }
+
+  /**
+   * Compare current scan with previous scan for the same target (scan diff)
+   */
+  async diff(orgId: string, scanId: string) {
+    const scan = await prisma.scan.findFirst({
+      where: { id: scanId, target: { orgId }, status: 'COMPLETED' },
+      include: { target: { select: { id: true, value: true } } },
+    });
+    if (!scan) throw ApiError.notFound('Completed scan not found');
+
+    // Find the previous completed scan for the same target
+    const previousScan = await prisma.scan.findFirst({
+      where: {
+        targetId: scan.targetId,
+        status: 'COMPLETED',
+        completedAt: { lt: scan.completedAt! },
+        id: { not: scanId },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    if (!previousScan) {
+      return {
+        currentScanId: scanId,
+        previousScanId: null,
+        target: scan.target,
+        message: 'No previous scan to compare',
+        newFindings: [],
+        fixedFindings: [],
+        unchangedCount: 0,
+      };
+    }
+
+    // Get findings for both scans
+    const [currentFindings, previousFindings] = await Promise.all([
+      prisma.vulnFinding.findMany({
+        where: { scanId },
+        select: { id: true, title: true, severity: true, category: true, affectedUrl: true, cvssScore: true, status: true },
+      }),
+      prisma.vulnFinding.findMany({
+        where: { scanId: previousScan.id },
+        select: { id: true, title: true, severity: true, category: true, affectedUrl: true, cvssScore: true, status: true },
+      }),
+    ]);
+
+    // Match by title+category+affectedUrl fingerprint
+    const fingerprint = (f: any) => `${f.title}|${f.category}|${f.affectedUrl || ''}`;
+    const prevSet = new Set(previousFindings.map(fingerprint));
+    const currSet = new Set(currentFindings.map(fingerprint));
+
+    const newFindings = currentFindings.filter((f) => !prevSet.has(fingerprint(f)));
+    const fixedFindings = previousFindings.filter((f) => !currSet.has(fingerprint(f)));
+    const unchangedCount = currentFindings.length - newFindings.length;
+
+    return {
+      currentScanId: scanId,
+      previousScanId: previousScan.id,
+      target: scan.target,
+      summary: {
+        currentTotal: currentFindings.length,
+        previousTotal: previousFindings.length,
+        new: newFindings.length,
+        fixed: fixedFindings.length,
+        unchanged: unchangedCount,
+      },
+      newFindings,
+      fixedFindings,
+    };
+  }
 }
 
 export const scansService = new ScansService();

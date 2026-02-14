@@ -105,3 +105,89 @@ export const SCANNER = {
     '100.64.0.0/10',
   ],
 } as const;
+
+// ========================
+// OWASP Top 10 (2021) Mapping
+// ========================
+export const OWASP_TOP_10 = {
+  'A01': {
+    id: 'A01:2021',
+    name: 'Broken Access Control',
+    description: 'Restrictions on what authenticated users are allowed to do are not properly enforced.',
+    categories: ['OPEN_REDIRECT', 'PATH_TRAVERSAL', 'IDOR', 'CSRF', 'DIRECTORY_LISTING'],
+  },
+  'A02': {
+    id: 'A02:2021',
+    name: 'Cryptographic Failures',
+    description: 'Failures related to cryptography which often lead to sensitive data exposure.',
+    categories: ['SSL_TLS', 'CERT_ISSUE', 'COOKIE_SECURITY'],
+  },
+  'A03': {
+    id: 'A03:2021',
+    name: 'Injection',
+    description: 'User-supplied data is not validated, filtered, or sanitized by the application.',
+    categories: ['SQL_INJECTION', 'XSS_REFLECTED', 'XSS_STORED', 'COMMAND_INJECTION', 'LFI', 'RFI'],
+  },
+  'A04': {
+    id: 'A04:2021',
+    name: 'Insecure Design',
+    description: 'Missing or ineffective control design. Requires threat modeling and secure design patterns.',
+    categories: [],
+  },
+  'A05': {
+    id: 'A05:2021',
+    name: 'Security Misconfiguration',
+    description: 'Missing security hardening, misconfigured permissions, unnecessary features enabled.',
+    categories: ['SECURITY_HEADERS', 'CORS_MISCONFIG', 'HTTP_METHODS', 'INFO_DISCLOSURE', 'DEFAULT_CREDENTIALS', 'SENSITIVE_FILE'],
+  },
+  'A06': {
+    id: 'A06:2021',
+    name: 'Vulnerable and Outdated Components',
+    description: 'Using components with known vulnerabilities.',
+    categories: ['OUTDATED_SOFTWARE'],
+  },
+  'A07': {
+    id: 'A07:2021',
+    name: 'Identification and Authentication Failures',
+    description: 'Confirmation of user identity, authentication, and session management is weak.',
+    categories: [],
+  },
+  'A08': {
+    id: 'A08:2021',
+    name: 'Software and Data Integrity Failures',
+    description: 'Code and infrastructure that does not protect against integrity violations.',
+    categories: [],
+  },
+  'A09': {
+    id: 'A09:2021',
+    name: 'Security Logging and Monitoring Failures',
+    description: 'Insufficient logging, detection, monitoring, and active response.',
+    categories: [],
+  },
+  'A10': {
+    id: 'A10:2021',
+    name: 'Server-Side Request Forgery (SSRF)',
+    description: 'Fetching a remote resource without validating the user-supplied URL.',
+    categories: ['SSRF'],
+  },
+} as const;
+
+/**
+ * Get OWASP category ID from VulnCategory
+ */
+export function getOwaspFromCategory(category: string): string | null {
+  for (const [key, entry] of Object.entries(OWASP_TOP_10)) {
+    if ((entry.categories as readonly string[]).includes(category)) {
+      return entry.id;
+    }
+  }
+  return null;
+}
+
+/** Map VulnCategory → OWASP ID lookup (flat) */
+export const VULN_TO_OWASP: Record<string, string> = {};
+for (const [key, entry] of Object.entries(OWASP_TOP_10)) {
+  for (const cat of entry.categories) {
+    VULN_TO_OWASP[cat] = entry.id;
+  }
+}
