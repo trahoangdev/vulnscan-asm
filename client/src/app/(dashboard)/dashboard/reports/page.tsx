@@ -13,17 +13,42 @@ import {
   XCircle,
   FileJson,
   Calendar,
+  FileSpreadsheet,
+  FileCode2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { reportsApi, targetsApi } from '@/services/api';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { reportsApi } from '@/services/api';
+import toast from 'react-hot-toast';
 
 const reportTypes = [
   { value: 'EXECUTIVE_SUMMARY', label: 'Executive Summary' },
   { value: 'TECHNICAL_DETAIL', label: 'Technical Detail' },
   { value: 'ASSET_INVENTORY', label: 'Asset Inventory' },
   { value: 'COMPLIANCE_OWASP', label: 'OWASP Compliance' },
+];
+
+const formatOptions = [
+  { value: 'JSON', label: 'JSON', icon: FileJson },
+  { value: 'CSV', label: 'CSV', icon: FileSpreadsheet },
+  { value: 'HTML', label: 'HTML', icon: FileCode2 },
 ];
 
 const statusIcons: Record<string, React.ElementType> = {
@@ -38,9 +63,15 @@ const statusColors: Record<string, string> = {
   failed: 'text-red-500',
 };
 
+const formatExtensions: Record<string, string> = {
+  JSON: '.json',
+  CSV: '.csv',
+  HTML: '.html',
+};
+
 export default function ReportsPage() {
   const queryClient = useQueryClient();
-  const [showCreate, setShowCreate] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [newReport, setNewReport] = useState({
     type: 'EXECUTIVE_SUMMARY',
     title: '',
@@ -57,16 +88,20 @@ export default function ReportsPage() {
       reportsApi.generate(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      setShowCreate(false);
+      setCreateOpen(false);
       setNewReport({ type: 'EXECUTIVE_SUMMARY', title: '', format: 'JSON' });
+      toast.success('Report generation started');
     },
+    onError: () => toast.error('Failed to generate report'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => reportsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      toast.success('Report deleted');
     },
+    onError: () => toast.error('Failed to delete report'),
   });
 
   const reports = data?.data?.data || [];
@@ -76,17 +111,26 @@ export default function ReportsPage() {
     generateMutation.mutate(newReport);
   };
 
-  const handleDownload = (report: any) => {
-    if (report.fileUrl) {
-      // For data URLs, create a blob and download
-      if (report.fileUrl.startsWith('data:')) {
-        const link = document.createElement('a');
-        link.href = report.fileUrl;
-        link.download = `${report.title.replace(/\s+/g, '_')}.json`;
-        link.click();
-      } else {
-        window.open(report.fileUrl, '_blank');
-      }
+  const handleDownload = async (report: any) => {
+    try {
+      const response = await reportsApi.download(report.id);
+      const blob = response.data instanceof Blob
+        ? response.data
+        : new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+
+      const ext = formatExtensions[report.format] || '.json';
+      const filename = `${report.title.replace(/\s+/g, '_')}${ext}`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download report');
     }
   };
 
@@ -100,60 +144,88 @@ export default function ReportsPage() {
             Generate and download security reports.
           </p>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Generate Report
-        </Button>
-      </div>
-
-      {/* Create Report Form */}
-      {showCreate && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">New Report</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Generate Report
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Generate New Report</DialogTitle>
+              <DialogDescription>
+                Create a comprehensive security report from your scan data.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
               <div>
-                <label className="text-sm font-medium mb-1 block">Title</label>
+                <label className="text-sm font-medium mb-1.5 block">Report Title</label>
                 <Input
-                  placeholder="Monthly Security Report"
+                  placeholder="e.g. Monthly Security Report - January"
                   value={newReport.title}
                   onChange={(e) => setNewReport({ ...newReport, title: e.target.value })}
                 />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">Type</label>
-                <select
+                <label className="text-sm font-medium mb-1.5 block">Report Type</label>
+                <Select
                   value={newReport.type}
-                  onChange={(e) => setNewReport({ ...newReport, type: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                  onValueChange={(v) => setNewReport({ ...newReport, type: v })}
                 >
-                  {reportTypes.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reportTypes.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={handleGenerate}
-                  disabled={!newReport.title.trim() || generateMutation.isPending}
-                  className="w-full"
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Format</label>
+                <Select
+                  value={newReport.format}
+                  onValueChange={(v) => setNewReport({ ...newReport, format: v })}
                 >
-                  {generateMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4 mr-2" />
-                  )}
-                  Generate
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formatOptions.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        <span className="flex items-center gap-2">
+                          <f.icon className="h-3.5 w-3.5" />
+                          {f.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleGenerate}
+                disabled={!newReport.title.trim() || generateMutation.isPending}
+              >
+                {generateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                Generate
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {/* Reports List */}
       {isLoading ? (
@@ -175,12 +247,13 @@ export default function ReportsPage() {
           {reports.map((report: any) => {
             const StatusIcon = statusIcons[report.status] || Clock;
             const statusColor = statusColors[report.status] || 'text-gray-400';
+            const FormatIcon = formatOptions.find((f) => f.value === report.format)?.icon || FileJson;
 
             return (
               <Card key={report.id}>
                 <CardContent className="flex items-center gap-4 py-4 px-5">
                   <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10">
-                    <FileJson className="h-5 w-5 text-primary" />
+                    <FormatIcon className="h-5 w-5 text-primary" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -208,6 +281,7 @@ export default function ReportsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDownload(report)}
+                        title="Download report"
                       >
                         <Download className="h-4 w-4" />
                       </Button>
@@ -217,6 +291,7 @@ export default function ReportsPage() {
                       size="sm"
                       onClick={() => deleteMutation.mutate(report.id)}
                       className="text-red-500 hover:text-red-700"
+                      title="Delete report"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

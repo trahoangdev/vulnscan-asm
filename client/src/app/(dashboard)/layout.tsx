@@ -285,10 +285,46 @@ export default function DashboardLayout({
                         recentNotifications.map((notif: any) => {
                           const Icon = NOTIF_ICON[notif.type] || Info;
                           const color = NOTIF_COLOR[notif.type] || 'text-gray-500';
+                          // Deep-link based on notification type
+                          const getNotifLink = (n: any): string | null => {
+                            const d = n.data || {};
+                            if (n.type === 'SCAN_COMPLETED' || n.type === 'SCAN_FAILED') {
+                              return d.scanId ? `/dashboard/scans/${d.scanId}` : '/dashboard/scans';
+                            }
+                            if (n.type === 'CRITICAL_VULN_FOUND' || n.type === 'HIGH_VULN_FOUND') {
+                              return d.vulnId ? `/dashboard/vulnerabilities/${d.vulnId}` : '/dashboard/vulnerabilities';
+                            }
+                            if (n.type === 'NEW_ASSET_DISCOVERED') {
+                              return d.assetId ? `/dashboard/assets/${d.assetId}` : '/dashboard/assets';
+                            }
+                            return null;
+                          };
+                          const notifLink = getNotifLink(notif);
+
+                          const handleNotifClick = async () => {
+                            // Mark individual as read
+                            if (!notif.isRead) {
+                              try {
+                                await notificationsApi.markAsRead(notif.id);
+                                queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                                if (totalUnread > 0) setUnreadCount(Math.max(0, socketUnread - 1));
+                              } catch {}
+                            }
+                            // Navigate to deep link
+                            if (notifLink) {
+                              setNotifOpen(false);
+                              router.push(notifLink);
+                            }
+                          };
+
                           return (
                             <div
                               key={notif.id}
-                              className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b last:border-0 ${
+                              onClick={handleNotifClick}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => e.key === 'Enter' && handleNotifClick()}
+                              className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b last:border-0 cursor-pointer ${
                                 !notif.isRead ? 'bg-primary/5' : ''
                               }`}
                             >
