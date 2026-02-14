@@ -102,3 +102,14 @@ export function emitNotification(userId: string, notification: any) {
     io.to(`user:${userId}`).emit('notification:new', { notification });
   }
 }
+
+export function emitAssetDiscovered(orgId: string, asset: {
+  id: string;
+  value: string;
+  type: string;
+  targetId: string;
+}) {
+  if (io) {
+    io.to(`org:${orgId}`).emit('asset:discovered', { asset });
+  }
+}

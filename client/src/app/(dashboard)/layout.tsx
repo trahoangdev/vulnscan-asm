@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Shield,
   User,
+  HardDrive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth';
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Targets', href: '/dashboard/targets', icon: Target },
   { name: 'Scans', href: '/dashboard/scans', icon: Scan },
+  { name: 'Assets', href: '/dashboard/assets', icon: HardDrive },
   { name: 'Vulnerabilities', href: '/dashboard/vulnerabilities', icon: ShieldAlert },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
 ];

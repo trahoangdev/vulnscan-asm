@@ -79,6 +79,31 @@ export const dashboardApi = {
     apiClient.get('/dashboard/stats'),
 };
 
+export const assetsApi = {
+  list: (params?: Record<string, any>) =>
+    apiClient.get('/assets', { params }),
+
+  getById: (id: string) =>
+    apiClient.get(`/assets/${id}`),
+
+  getStats: () =>
+    apiClient.get('/assets/stats'),
+};
+
+export const reportsApi = {
+  list: (params?: Record<string, any>) =>
+    apiClient.get('/reports', { params }),
+
+  generate: (data: { type: string; title: string; format?: string; parameters?: Record<string, any> }) =>
+    apiClient.post('/reports', data),
+
+  getById: (id: string) =>
+    apiClient.get(`/reports/${id}`),
+
+  delete: (id: string) =>
+    apiClient.delete(`/reports/${id}`),
+};
+
 export const usersApi = {
   getMe: () =>
     apiClient.get('/users/me'),
