@@ -62,6 +62,18 @@ export class UsersController {
       next(error);
     }
   }
+
+  /**
+   * GET /users/me/activity
+   */
+  async getActivityLog(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await usersService.getActivityLog(req.user!.userId, req.query as Record<string, any>);
+      return ApiResponse.success(res, result.data, 200, result.meta);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const usersController = new UsersController();

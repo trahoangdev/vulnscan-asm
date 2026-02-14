@@ -14,5 +14,6 @@ router.put('/me', validateBody(updateProfileSchema), usersController.updateMe);
 router.put('/me/password', validateBody(changePasswordSchema), usersController.changePassword);
 router.get('/me/notification-preferences', usersController.getNotificationPrefs);
 router.put('/me/notification-preferences', validateBody(notificationPrefsSchema), usersController.updateNotificationPrefs);
+router.get('/me/activity', usersController.getActivityLog);
 
 export default router;

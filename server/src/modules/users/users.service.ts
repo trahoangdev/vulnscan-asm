@@ -140,6 +140,39 @@ export class UsersService {
     });
     return merged;
   }
+
+  /**
+   * Get user activity log (audit log + login history)
+   */
+  async getActivityLog(userId: string, query: Record<string, any>) {
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip,
+        select: {
+          id: true,
+          action: true,
+          entity: true,
+          entityId: true,
+          details: true,
+          ipAddress: true,
+          createdAt: true,
+        },
+      }),
+      prisma.auditLog.count({ where: { userId } }),
+    ]);
+
+    return {
+      data: logs,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
 }
 
 export const usersService = new UsersService();

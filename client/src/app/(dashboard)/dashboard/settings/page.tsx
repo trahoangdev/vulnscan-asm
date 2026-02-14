@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   User,
@@ -10,6 +10,11 @@ import {
   Loader2,
   Save,
   Shield,
+  Globe,
+  Scan,
+  Copy,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +25,15 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth';
 import { usersApi } from '@/services/api';
+import { authApi } from '@/services/auth';
 import toast from 'react-hot-toast';
+
+const TIMEZONES = [
+  'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+  'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Moscow',
+  'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Ho_Chi_Minh',
+  'Asia/Seoul', 'Asia/Bangkok', 'Australia/Sydney', 'Pacific/Auckland',
+];
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -28,6 +41,7 @@ export default function SettingsPage() {
 
   // Profile state
   const [name, setName] = useState(user?.name || '');
+  const [timezone, setTimezone] = useState((user as any)?.timezone || 'UTC');
   const [profileLoading, setProfileLoading] = useState(false);
 
   // Password state
@@ -36,23 +50,47 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
 
+  // 2FA state
+  const [twoFAEnabled, setTwoFAEnabled] = useState((user as any)?.twoFactorEnabled || false);
+  const [twoFASetup, setTwoFASetup] = useState<{ secret: string; qrCode: string; otpauth: string } | null>(null);
+  const [twoFAToken, setTwoFAToken] = useState('');
+  const [twoFALoading, setTwoFALoading] = useState(false);
+  const [disableToken, setDisableToken] = useState('');
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disableLoading, setDisableLoading] = useState(false);
+
   // Notification preferences state
   const [notifPrefs, setNotifPrefs] = useState({
-    scan_complete: true,
-    new_vuln: true,
-    weekly_report: true,
-    new_asset: false,
-    scan_failed: true,
+    emailCritical: true,
+    emailHigh: true,
+    emailWeeklyDigest: true,
+    inAppEnabled: true,
+    scanCompleted: true,
+    scanFailed: true,
+    newVulnerability: true,
+    certExpiring: true,
   });
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  // Default scan profile
+  const [defaultScanProfile, setDefaultScanProfile] = useState('STANDARD');
+
+  // Load notification prefs from server
+  useEffect(() => {
+    usersApi.getNotificationPrefs().then((res) => {
+      const data = res?.data?.data;
+      if (data) setNotifPrefs(data);
+    }).catch(() => {});
+  }, []);
 
   const handleProfileUpdate = async () => {
     try {
       setProfileLoading(true);
-      const res = await usersApi.updateMe({ name });
+      const res = await usersApi.updateMe({ name, timezone });
       if (res.data) {
         useAuthStore.getState().setUser({
           ...user!,
-          name: res.data.name || name,
+          name: res.data.data?.name || name,
         });
       }
       toast.success('Profile updated');
@@ -86,9 +124,74 @@ export default function SettingsPage() {
     }
   };
 
-  const toggleNotifPref = (key: string) => {
-    setNotifPrefs((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }));
-    toast.success('Notification preference updated');
+  const handleSetup2FA = async () => {
+    try {
+      setTwoFALoading(true);
+      const res = await authApi.setup2fa();
+      setTwoFASetup(res.data?.data);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'Failed to setup 2FA');
+    } finally {
+      setTwoFALoading(false);
+    }
+  };
+
+  const handleEnable2FA = async () => {
+    if (twoFAToken.length !== 6) {
+      toast.error('Enter a 6-digit code');
+      return;
+    }
+    try {
+      setTwoFALoading(true);
+      await authApi.enable2fa(twoFAToken);
+      setTwoFAEnabled(true);
+      setTwoFASetup(null);
+      setTwoFAToken('');
+      toast.success('Two-factor authentication enabled!');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'Invalid code');
+    } finally {
+      setTwoFALoading(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (disableToken.length !== 6 || !disablePassword) {
+      toast.error('Enter your password and 6-digit code');
+      return;
+    }
+    try {
+      setDisableLoading(true);
+      await authApi.disable2fa(disableToken, disablePassword);
+      setTwoFAEnabled(false);
+      setDisableToken('');
+      setDisablePassword('');
+      toast.success('Two-factor authentication disabled');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'Failed to disable 2FA');
+    } finally {
+      setDisableLoading(false);
+    }
+  };
+
+  const toggleNotifPref = async (key: string) => {
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key as keyof typeof notifPrefs] };
+    setNotifPrefs(updated);
+    try {
+      setNotifLoading(true);
+      await usersApi.updateNotificationPrefs(updated);
+      toast.success('Notification preference updated');
+    } catch {
+      toast.error('Failed to save preference');
+      setNotifPrefs(notifPrefs); // revert
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard');
   };
 
   return (
@@ -154,6 +257,32 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">
                   Email cannot be changed. Contact support if needed.
                 </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <select
+                  id="timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                >
+                  {TIMEZONES.map((tz) => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scanProfile">Default Scan Profile</Label>
+                <select
+                  id="scanProfile"
+                  value={defaultScanProfile}
+                  onChange={(e) => setDefaultScanProfile(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                >
+                  <option value="QUICK">Quick — Headers, SSL, Exposed files (2-5 min)</option>
+                  <option value="STANDARD">Standard — Quick + SQLi, XSS, Config (10-20 min)</option>
+                  <option value="DEEP">Deep — All modules, full port scan (30-60 min)</option>
+                </select>
               </div>
               <Button onClick={handleProfileUpdate} disabled={profileLoading}>
                 {profileLoading ? (
@@ -223,6 +352,128 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
+            {/* Two-Factor Authentication */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Two-Factor Authentication
+                </CardTitle>
+                <CardDescription>
+                  Add an extra layer of security using a TOTP authenticator app
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {twoFAEnabled ? (
+                  <>
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200 dark:bg-green-950/30 dark:border-green-800">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                        Two-factor authentication is enabled
+                      </span>
+                    </div>
+                    <Separator />
+                    <p className="text-sm text-muted-foreground">
+                      To disable 2FA, enter your password and a code from your authenticator app.
+                    </p>
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={disablePassword}
+                        onChange={(e) => setDisablePassword(e.target.value)}
+                        placeholder="Enter your password"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Authenticator Code</Label>
+                      <Input
+                        value={disableToken}
+                        onChange={(e) => setDisableToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="Enter 6-digit code"
+                        maxLength={6}
+                        className="font-mono tracking-widest text-center text-lg"
+                      />
+                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDisable2FA}
+                      disabled={disableLoading}
+                    >
+                      {disableLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <XCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Disable 2FA
+                    </Button>
+                  </>
+                ) : twoFASetup ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.)
+                    </p>
+                    <div className="flex justify-center py-4">
+                      <img
+                        src={twoFASetup.qrCode}
+                        alt="2FA QR Code"
+                        className="rounded-lg border p-2"
+                        width={200}
+                        height={200}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Manual entry key</Label>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs font-mono p-2 bg-muted rounded break-all">
+                          {twoFASetup.secret}
+                        </code>
+                        <Button variant="ghost" size="icon" onClick={() => copyToClipboard(twoFASetup.secret)}>
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label>Verification Code</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Enter the 6-digit code from your authenticator app to verify setup
+                      </p>
+                      <Input
+                        value={twoFAToken}
+                        onChange={(e) => setTwoFAToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        maxLength={6}
+                        className="font-mono tracking-widest text-center text-lg"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleEnable2FA} disabled={twoFALoading || twoFAToken.length !== 6}>
+                        {twoFALoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                        Verify &amp; Enable
+                      </Button>
+                      <Button variant="outline" onClick={() => { setTwoFASetup(null); setTwoFAToken(''); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                      <Shield className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        Two-factor authentication is not enabled
+                      </span>
+                    </div>
+                    <Button onClick={handleSetup2FA} disabled={twoFALoading}>
+                      {twoFALoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Shield className="h-4 w-4 mr-2" />}
+                      Set Up Two-Factor Authentication
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -238,7 +489,7 @@ export default function SettingsPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-500 mt-0.5">&#10003;</span>
-                    Include uppercase, lowercase, numbers, and special characters
+                    Enable two-factor authentication for enhanced security
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-500 mt-0.5">&#10003;</span>
@@ -264,11 +515,14 @@ export default function SettingsPage() {
             <CardContent>
               <div className="space-y-1">
                 {[
-                  { id: 'scan_complete', label: 'Scan completed', desc: 'Get notified when scans finish successfully', icon: '✅' },
-                  { id: 'scan_failed', label: 'Scan failed', desc: 'Alert when a scan encounters errors', icon: '❌' },
-                  { id: 'new_vuln', label: 'New vulnerabilities', desc: 'Alert on critical and high severity findings', icon: '🔴' },
-                  { id: 'new_asset', label: 'New assets discovered', desc: 'Notify when new assets are found during scans', icon: '🔍' },
-                  { id: 'weekly_report', label: 'Weekly digest', desc: 'Weekly security summary email every Monday', icon: '📧' },
+                  { id: 'emailCritical', label: 'Critical vulnerability alerts', desc: 'Email notification when critical vulnerabilities are found', icon: '🔴' },
+                  { id: 'emailHigh', label: 'High severity alerts', desc: 'Email notification for high severity findings', icon: '🟠' },
+                  { id: 'emailWeeklyDigest', label: 'Weekly digest', desc: 'Weekly security summary email every Monday', icon: '📧' },
+                  { id: 'inAppEnabled', label: 'In-app notifications', desc: 'Show notifications in the notification center', icon: '🔔' },
+                  { id: 'scanCompleted', label: 'Scan completed', desc: 'Get notified when scans finish successfully', icon: '✅' },
+                  { id: 'scanFailed', label: 'Scan failed', desc: 'Alert when a scan encounters errors', icon: '❌' },
+                  { id: 'newVulnerability', label: 'New vulnerabilities', desc: 'Alert whenever new vulnerabilities are detected', icon: '🛡️' },
+                  { id: 'certExpiring', label: 'Certificate expiring', desc: 'Warn when SSL certificates are about to expire', icon: '📜' },
                 ].map((pref) => (
                   <div key={pref.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-3">
@@ -284,6 +538,7 @@ export default function SettingsPage() {
                         checked={notifPrefs[pref.id as keyof typeof notifPrefs] ?? true}
                         onChange={() => toggleNotifPref(pref.id)}
                         className="sr-only peer"
+                        disabled={notifLoading}
                       />
                       <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
                     </label>

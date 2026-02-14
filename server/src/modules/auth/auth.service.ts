@@ -85,6 +85,18 @@ export class AuthService {
       html: verificationEmailHtml(data.name, verifyUrl),
     }).catch((err) => logger.error('Failed to send verification email:', err));
 
+    // Audit log
+    prisma.auditLog.create({
+      data: {
+        userId: result.user.id,
+        action: 'auth.register',
+        entity: 'user',
+        entityId: result.user.id,
+        ipAddress: clientIp,
+        details: { method: 'email' },
+      },
+    }).catch(() => {});
+
     return {
       user: {
         id: result.user.id,
@@ -156,6 +168,18 @@ export class AuthService {
         lastLoginIp: clientIp,
       },
     });
+
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'auth.login',
+        entity: 'user',
+        entityId: user.id,
+        ipAddress: clientIp,
+        details: { method: 'password' },
+      },
+    }).catch(() => {}); // non-blocking
 
     return {
       accessToken,
@@ -406,6 +430,17 @@ export class AuthService {
       data: { twoFactorEnabled: true },
     });
 
+    // Audit log
+    prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'auth.2fa_enabled',
+        entity: 'user',
+        entityId: userId,
+        details: { method: 'totp' },
+      },
+    }).catch(() => {});
+
     return { message: '2FA enabled successfully' };
   }
 
@@ -432,6 +467,17 @@ export class AuthService {
       where: { id: userId },
       data: { twoFactorEnabled: false, twoFactorSecret: null },
     });
+
+    // Audit log
+    prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'auth.2fa_disabled',
+        entity: 'user',
+        entityId: userId,
+        details: { method: 'totp' },
+      },
+    }).catch(() => {});
 
     return { message: '2FA disabled successfully' };
   }
@@ -477,6 +523,18 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLoginAt: new Date(), lastLoginIp: clientIp },
     });
+
+    // Audit log
+    prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'auth.login_2fa',
+        entity: 'user',
+        entityId: user.id,
+        ipAddress: clientIp,
+        details: { method: '2fa_totp' },
+      },
+    }).catch(() => {});
 
     return {
       accessToken,
@@ -682,6 +740,18 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLoginAt: new Date(), lastLoginIp: data.clientIp },
     });
+
+    // Audit log
+    prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'auth.oauth_login',
+        entity: 'user',
+        entityId: user.id,
+        ipAddress: data.clientIp,
+        details: { method: 'oauth', provider: data.provider },
+      },
+    }).catch(() => {});
 
     return {
       accessToken,

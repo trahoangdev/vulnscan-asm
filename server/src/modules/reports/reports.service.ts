@@ -1,7 +1,7 @@
 import prisma from '../../config/database';
 import { ApiError } from '../../utils/ApiError';
 import { parsePagination } from '../../utils/helpers';
-import { executiveSummaryHtml, technicalDetailHtml, owaspComplianceHtml } from './templates';
+import { executiveSummaryHtml, technicalDetailHtml, owaspComplianceHtml, pciDssComplianceHtml } from './templates';
 import puppeteer from 'puppeteer';
 
 export class ReportsService {
@@ -116,6 +116,8 @@ export class ReportsService {
         return executiveSummaryHtml(data);
       case 'COMPLIANCE_OWASP':
         return owaspComplianceHtml(data);
+      case 'COMPLIANCE_PCI':
+        return pciDssComplianceHtml(data);
       case 'TECHNICAL_DETAIL':
       default:
         return technicalDetailHtml(data);

@@ -16,6 +16,8 @@ import {
   Trash2,
   Eye,
   Loader2,
+  Upload,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +41,8 @@ export default function TargetsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [csvData, setCsvData] = useState('');
   const [newTarget, setNewTarget] = useState({ value: '', type: 'DOMAIN' });
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
@@ -69,11 +73,35 @@ export default function TargetsPage() {
     onError: () => toast.error('Failed to delete target'),
   });
 
+  const importMutation = useMutation({
+    mutationFn: (csv: string) => targetsApi.bulkImport(csv),
+    onSuccess: (res: any) => {
+      const result = res?.data?.data;
+      queryClient.invalidateQueries({ queryKey: ['targets'] });
+      setShowImport(false);
+      setCsvData('');
+      toast.success(`Imported ${result?.imported || 0} targets (${result?.failed || 0} failed)`);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || 'Failed to import targets');
+    },
+  });
+
   const targets = data?.data?.data || [];
 
   const handleAdd = () => {
     if (!newTarget.value.trim()) return;
     createMutation.mutate(newTarget);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setCsvData(ev.target?.result as string);
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -86,11 +114,62 @@ export default function TargetsPage() {
             Manage the domains and IPs you want to scan.
           </p>
         </div>
-        <Button onClick={() => setShowAddForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Target
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button onClick={() => setShowAddForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Target
+          </Button>
+        </div>
       </div>
+
+      {/* Bulk Import Form */}
+      {showImport && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Bulk Import Targets</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Upload a CSV file or paste CSV data. Format: one target per line, or with columns: value, type (DOMAIN/IP/CIDR)
+            </p>
+            <div className="flex items-center gap-3">
+              <Input
+                type="file"
+                accept=".csv,.txt"
+                onChange={handleFileUpload}
+                className="flex-1"
+              />
+            </div>
+            <textarea
+              value={csvData}
+              onChange={(e) => setCsvData(e.target.value)}
+              placeholder="example.com&#10;192.168.1.1&#10;api.example.com"
+              rows={5}
+              className="w-full px-3 py-2 border rounded-md text-sm bg-background font-mono resize-y"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={() => importMutation.mutate(csvData)}
+                disabled={importMutation.isPending || !csvData.trim()}
+              >
+                {importMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                Import
+              </Button>
+              <Button variant="outline" onClick={() => { setShowImport(false); setCsvData(''); }}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Target Form */}
       {showAddForm && (
@@ -181,7 +260,7 @@ export default function TargetsPage() {
                     </div>
                     <div>
                       <p className="font-medium">{target.value}</p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-xs text-muted-foreground uppercase">
                           {target.type}
                         </span>
@@ -189,6 +268,12 @@ export default function TargetsPage() {
                           <StatusIcon className="h-3 w-3" />
                           {status.label}
                         </span>
+                        {target.tags?.length > 0 && target.tags.map((tag: string) => (
+                          <span key={tag} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                            <Tag className="h-2.5 w-2.5" />
+                            {tag}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>

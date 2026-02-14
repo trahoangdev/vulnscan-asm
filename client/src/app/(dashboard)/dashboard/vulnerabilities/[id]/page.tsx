@@ -7,9 +7,11 @@ import {
   Loader2,
   ExternalLink,
   Shield,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { vulnerabilitiesApi } from '@/services/api';
 import toast from 'react-hot-toast';
 
@@ -47,6 +49,15 @@ export default function VulnerabilityDetailPage() {
       toast.success('Status updated');
     },
     onError: () => toast.error('Failed to update status'),
+  });
+
+  const reverifyMutation = useMutation({
+    mutationFn: () => vulnerabilitiesApi.reverify(vulnId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vulnerability', vulnId] });
+      toast.success('Re-verification scan queued. Check the Scans page for progress.');
+    },
+    onError: () => toast.error('Failed to start re-verification scan'),
   });
 
   if (isLoading) {
@@ -93,18 +104,40 @@ export default function VulnerabilityDetailPage() {
         <CardHeader>
           <CardTitle className="text-base">Update Status</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {['OPEN', 'CONFIRMED', 'FALSE_POSITIVE', 'ACCEPTED', 'FIXED'].map((s) => (
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {['OPEN', 'CONFIRMED', 'FALSE_POSITIVE', 'ACCEPTED', 'FIXED'].map((s) => (
+              <Button
+                key={s}
+                variant={vuln.status === s ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => updateStatusMutation.mutate(s)}
+                disabled={vuln.status === s || updateStatusMutation.isPending}
+              >
+                {statusLabels[s]}
+              </Button>
+            ))}
+          </div>
+          <Separator className="my-4" />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Re-verify this vulnerability</p>
+              <p className="text-xs text-muted-foreground">Run a targeted scan to check if this issue has been fixed</p>
+            </div>
             <Button
-              key={s}
-              variant={vuln.status === s ? 'default' : 'outline'}
+              variant="outline"
               size="sm"
-              onClick={() => updateStatusMutation.mutate(s)}
-              disabled={vuln.status === s || updateStatusMutation.isPending}
+              onClick={() => reverifyMutation.mutate()}
+              disabled={reverifyMutation.isPending}
             >
-              {statusLabels[s]}
+              {reverifyMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Re-verify
             </Button>
-          ))}
+          </div>
         </CardContent>
       </Card>
 

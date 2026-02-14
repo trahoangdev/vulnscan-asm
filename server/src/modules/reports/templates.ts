@@ -284,3 +284,135 @@ export function owaspComplianceHtml(data: any): string {
 
   return baseLayout('OWASP Top 10 Compliance Report', body, generatedAt);
 }
+
+// ========================================
+// PCI-DSS Compliance Template
+// ========================================
+
+const PCI_DSS_REQUIREMENTS: { id: string; title: string; vulnCategories: string[] }[] = [
+  { id: '1', title: 'Install and maintain network security controls', vulnCategories: ['OPEN_PORTS', 'FIREWALL_MISCONFIG'] },
+  { id: '2', title: 'Apply secure configurations to all system components', vulnCategories: ['SECURITY_HEADERS', 'SERVER_INFO_DISCLOSURE', 'DEFAULT_CREDENTIALS', 'DIRECTORY_LISTING'] },
+  { id: '3', title: 'Protect stored account data', vulnCategories: ['SENSITIVE_DATA_EXPOSURE', 'INFORMATION_DISCLOSURE'] },
+  { id: '4', title: 'Protect cardholder data with strong cryptography during transmission', vulnCategories: ['SSL_TLS', 'CERTIFICATE_EXPIRY', 'WEAK_CIPHER'] },
+  { id: '5', title: 'Protect all systems and networks from malicious software', vulnCategories: ['MALWARE', 'FILE_UPLOAD'] },
+  { id: '6', title: 'Develop and maintain secure systems and software', vulnCategories: ['SQL_INJECTION', 'XSS_REFLECTED', 'XSS_STORED', 'COMMAND_INJECTION', 'PATH_TRAVERSAL', 'SSRF', 'LFI', 'OPEN_REDIRECT', 'CORS_MISCONFIG', 'COOKIE_SECURITY', 'CSRF'] },
+  { id: '7', title: 'Restrict access to system components and cardholder data by business need to know', vulnCategories: ['IDOR', 'BROKEN_AUTH', 'EXPOSED_ADMIN'] },
+  { id: '8', title: 'Identify users and authenticate access to system components', vulnCategories: ['BROKEN_AUTH', 'DEFAULT_CREDENTIALS', 'WEAK_PASSWORD'] },
+  { id: '9', title: 'Restrict physical access to cardholder data', vulnCategories: [] },
+  { id: '10', title: 'Log and monitor all access to system components and cardholder data', vulnCategories: ['LOGGING_MISSING'] },
+  { id: '11', title: 'Test security of systems and networks regularly', vulnCategories: ['OUTDATED_SOFTWARE', 'CVE_MATCH'] },
+  { id: '12', title: 'Support information security with organizational policies and programs', vulnCategories: ['EMAIL_SECURITY'] },
+];
+
+export function pciDssComplianceHtml(data: any): string {
+  const generatedAt = new Date().toISOString();
+  const findings = data.findings || [];
+
+  // Map findings to PCI requirements
+  const reqResults = PCI_DSS_REQUIREMENTS.map((req) => {
+    const relatedFindings = findings.filter((f: any) =>
+      req.vulnCategories.includes(f.category)
+    );
+    const hasCritical = relatedFindings.some((f: any) => f.severity === 'CRITICAL' || f.severity === 'HIGH');
+    const status = req.vulnCategories.length === 0
+      ? 'N/A'
+      : relatedFindings.length === 0
+        ? 'PASS'
+        : hasCritical ? 'FAIL' : 'WARN';
+    return { ...req, findings: relatedFindings, status };
+  });
+
+  const passCount = reqResults.filter((r) => r.status === 'PASS').length;
+  const failCount = reqResults.filter((r) => r.status === 'FAIL').length;
+  const warnCount = reqResults.filter((r) => r.status === 'WARN').length;
+  const naCount = reqResults.filter((r) => r.status === 'N/A').length;
+  const complianceScore = Math.round((passCount / (reqResults.length - naCount)) * 100) || 0;
+
+  const statusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      PASS: 'background:#22c55e;color:#fff',
+      FAIL: 'background:#ef4444;color:#fff',
+      WARN: 'background:#f59e0b;color:#fff',
+      'N/A': 'background:#9ca3af;color:#fff',
+    };
+    return `<span style="${colors[status] || colors['N/A']};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${status}</span>`;
+  };
+
+  const body = `
+    <h2>PCI-DSS v4.0 Compliance Assessment</h2>
+    <p style="color:#6b7280">Assessment of ${data.targets?.length || 0} target(s) against PCI-DSS requirements based on automated scanning results.</p>
+
+    <div style="display:flex;gap:16px;margin:20px 0">
+      <div style="flex:1;padding:16px;background:#f0fdf4;border-radius:8px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#16a34a">${complianceScore}%</div>
+        <div style="font-size:12px;color:#6b7280">Compliance Score</div>
+      </div>
+      <div style="flex:1;padding:16px;background:#f0fdf4;border-radius:8px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#22c55e">${passCount}</div>
+        <div style="font-size:12px;color:#6b7280">Pass</div>
+      </div>
+      <div style="flex:1;padding:16px;background:#fef2f2;border-radius:8px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#ef4444">${failCount}</div>
+        <div style="font-size:12px;color:#6b7280">Fail</div>
+      </div>
+      <div style="flex:1;padding:16px;background:#fffbeb;border-radius:8px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#f59e0b">${warnCount}</div>
+        <div style="font-size:12px;color:#6b7280">Warning</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:60px">Req #</th>
+          <th>Requirement</th>
+          <th style="width:80px">Status</th>
+          <th style="width:80px">Findings</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${reqResults.map((r) => `
+          <tr>
+            <td style="font-weight:700">${r.id}</td>
+            <td>${r.title}</td>
+            <td>${statusBadge(r.status)}</td>
+            <td>${r.findings.length > 0 ? r.findings.length : '-'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    ${failCount > 0 ? `
+      <h3 style="margin-top:24px">Failed Requirements — Details</h3>
+      ${reqResults.filter((r) => r.status === 'FAIL').map((r) => `
+        <div class="owasp-item">
+          <div class="id">Requirement ${r.id}: ${r.title}</div>
+          <table style="margin-top:8px">
+            <thead><tr><th>Severity</th><th>Finding</th><th>Target</th></tr></thead>
+            <tbody>
+              ${r.findings.slice(0, 10).map((f: any) => `
+                <tr>
+                  <td><span style="${
+                    f.severity === 'CRITICAL' ? 'background:#ef4444;color:#fff' :
+                    f.severity === 'HIGH' ? 'background:#f97316;color:#fff' :
+                    'background:#eab308;color:#fff'
+                  };padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${f.severity}</span></td>
+                  <td>${f.title}</td>
+                  <td>${f.scan?.target?.value || ''}</td>
+                </tr>
+              `).join('')}
+              ${r.findings.length > 10 ? `<tr><td colspan="3" style="color:#6b7280">...and ${r.findings.length - 10} more</td></tr>` : ''}
+            </tbody>
+          </table>
+        </div>
+      `).join('')}
+    ` : ''}
+
+    <div style="margin-top:24px;padding:12px;background:#eff6ff;border-radius:8px;font-size:12px;color:#6b7280">
+      <strong>Disclaimer:</strong> This automated assessment provides an indication of compliance posture based on technical scanning results. 
+      A full PCI-DSS assessment requires manual review by a Qualified Security Assessor (QSA).
+    </div>
+  `;
+
+  return baseLayout('PCI-DSS Compliance Report', body, generatedAt);
+}

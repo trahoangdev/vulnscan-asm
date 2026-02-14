@@ -143,6 +143,9 @@ export const usersApi = {
 
   updateNotificationPrefs: (prefs: Record<string, boolean>) =>
     apiClient.put('/users/me/notification-preferences', prefs),
+
+  getActivityLog: (params?: Record<string, any>) =>
+    apiClient.get('/users/me/activity', { params }),
 };
 
 export const organizationsApi = {

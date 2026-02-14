@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -133,13 +133,22 @@ function SecurityScoreGauge({ score }: { score: number }) {
 }
 
 export default function DashboardPage() {
+  const [trendDays, setTrendDays] = useState(30);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard', 'stats'],
     queryFn: dashboardApi.getStats,
     refetchInterval: 30000,
   });
 
+  const { data: trendData } = useQuery({
+    queryKey: ['dashboard', 'risk-trend', trendDays],
+    queryFn: () => dashboardApi.getRiskTrend(trendDays),
+    refetchInterval: 60000,
+  });
+
   const stats = data?.data?.data;
+  const riskTrend = trendData?.data?.data;
 
   // Compute security score
   const score = useMemo(() => {
@@ -551,14 +560,90 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* 30-Day Trend */}
+            {/* Risk Trend */}
             <Card>
               <CardHeader>
-                <CardTitle>Findings Trend</CardTitle>
-                <CardDescription>New findings per day (last 30 days)</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Risk Trend</CardTitle>
+                    <CardDescription>New vs resolved findings over time</CardDescription>
+                  </div>
+                  <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+                    {[7, 30, 60, 90].map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setTrendDays(d)}
+                        className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                          trendDays === d ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                {Array.isArray(stats.vulnerabilities.trend) && stats.vulnerabilities.trend.length > 0 ? (
+                {riskTrend?.dailyTrend?.length > 0 ? (
+                  <>
+                    {riskTrend.summary && (
+                      <div className="flex items-center gap-3 mb-4 text-sm">
+                        <span className="text-muted-foreground">Period change:</span>
+                        <span className={`font-semibold flex items-center gap-1 ${
+                          riskTrend.summary.changePercent > 0 ? 'text-red-500' :
+                          riskTrend.summary.changePercent < 0 ? 'text-green-500' : 'text-muted-foreground'
+                        }`}>
+                          {riskTrend.summary.changePercent > 0 ? (
+                            <TrendingUp className="h-4 w-4" />
+                          ) : riskTrend.summary.changePercent < 0 ? (
+                            <TrendingDown className="h-4 w-4" />
+                          ) : (
+                            <Minus className="h-4 w-4" />
+                          )}
+                          {riskTrend.summary.changePercent > 0 ? '+' : ''}{riskTrend.summary.changePercent}%
+                        </span>
+                        <span className="text-muted-foreground">
+                          ({riskTrend.summary.currentPeriodVulns} current vs {riskTrend.summary.previousPeriodVulns} previous)
+                        </span>
+                      </div>
+                    )}
+                    <ResponsiveContainer width="100%" height={250}>
+                      <AreaChart
+                        data={riskTrend.dailyTrend.map((d: any) => ({
+                          date: new Date(d.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          }),
+                          newVulns: d.newVulns,
+                          resolvedVulns: d.resolvedVulns,
+                        }))}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Area
+                          type="monotone"
+                          dataKey="newVulns"
+                          name="New"
+                          stroke="#ef4444"
+                          fill="#ef4444"
+                          fillOpacity={0.1}
+                          strokeWidth={2}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="resolvedVulns"
+                          name="Resolved"
+                          stroke="#22c55e"
+                          fill="#22c55e"
+                          fillOpacity={0.1}
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </>
+                ) : Array.isArray(stats.vulnerabilities.trend) && stats.vulnerabilities.trend.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <AreaChart
                       data={(stats.vulnerabilities.trend as any[]).map((d: any) => ({
