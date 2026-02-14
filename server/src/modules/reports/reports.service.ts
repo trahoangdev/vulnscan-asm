@@ -198,6 +198,33 @@ export class ReportsService {
   }
 
   /**
+   * Download report data
+   */
+  async download(orgId: string, reportId: string) {
+    const report = await prisma.report.findFirst({
+      where: { id: reportId, orgId },
+    });
+
+    if (!report) {
+      throw ApiError.notFound('Report not found');
+    }
+
+    if (report.status !== 'ready' || !report.fileUrl) {
+      throw ApiError.badRequest('Report is not ready for download');
+    }
+
+    // Extract JSON from base64 data URL
+    if (report.fileUrl.startsWith('data:application/json;base64,')) {
+      const base64 = report.fileUrl.replace('data:application/json;base64,', '');
+      const json = Buffer.from(base64, 'base64').toString('utf-8');
+      return { data: JSON.parse(json), format: report.format, title: report.title };
+    }
+
+    // For future S3/MinIO URLs, return the URL
+    return { url: report.fileUrl, format: report.format, title: report.title };
+  }
+
+  /**
    * Delete a report
    */
   async delete(orgId: string, reportId: string) {

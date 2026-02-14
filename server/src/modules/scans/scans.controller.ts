@@ -54,6 +54,15 @@ export class ScansController {
       next(error);
     }
   }
+
+  async getResults(req: Request, res: Response, next: NextFunction) {
+    try {
+      const results = await scansService.getResults(req.user!.orgId, req.params.id);
+      return ApiResponse.success(res, results);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const scansController = new ScansController();

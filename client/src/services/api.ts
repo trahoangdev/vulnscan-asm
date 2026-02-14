@@ -44,6 +44,9 @@ export const scansApi = {
 
   getFindings: (id: string, params?: Record<string, any>) =>
     apiClient.get(`/scans/${id}/findings`, { params }),
+
+  getResults: (id: string) =>
+    apiClient.get(`/scans/${id}/results`),
 };
 
 export const vulnerabilitiesApi = {
@@ -99,6 +102,9 @@ export const reportsApi = {
 
   getById: (id: string) =>
     apiClient.get(`/reports/${id}`),
+
+  download: (id: string) =>
+    apiClient.get(`/reports/${id}/download`, { responseType: 'blob' }),
 
   delete: (id: string) =>
     apiClient.delete(`/reports/${id}`),

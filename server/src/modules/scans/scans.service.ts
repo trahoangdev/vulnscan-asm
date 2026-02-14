@@ -205,6 +205,34 @@ export class ScansService {
 
     return { findings, total, page, limit };
   }
+
+  /**
+   * Get raw scan results by module
+   */
+  async getResults(orgId: string, scanId: string) {
+    // Verify scan belongs to org
+    const scan = await prisma.scan.findFirst({
+      where: { id: scanId, target: { orgId } },
+    });
+    if (!scan) throw ApiError.notFound('Scan not found');
+
+    const results = await prisma.scanResult.findMany({
+      where: { scanId },
+      orderBy: { startedAt: 'asc' },
+      select: {
+        id: true,
+        module: true,
+        status: true,
+        rawOutput: true,
+        duration: true,
+        startedAt: true,
+        completedAt: true,
+        errorMsg: true,
+      },
+    });
+
+    return results;
+  }
 }
 
 export const scansService = new ScansService();

@@ -396,13 +396,77 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Recent Scans */}
+            {/* Top Vulnerable Assets */}
             <Card>
               <CardHeader>
-                <CardTitle>Recent Scans</CardTitle>
-                <CardDescription>Latest scan activity</CardDescription>
+                <CardTitle>Top Vulnerable Assets</CardTitle>
+                <CardDescription>Assets with the most open findings</CardDescription>
               </CardHeader>
               <CardContent>
+                {stats.topVulnerableAssets && stats.topVulnerableAssets.length > 0 ? (
+                  <div className="space-y-3">
+                    {stats.topVulnerableAssets.map((asset: any, idx: number) => (
+                      <Link
+                        key={asset.id}
+                        href={`/dashboard/assets/${asset.id}`}
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{asset.value}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {asset.type?.replace('_', ' ').toLowerCase()}
+                            {asset.ip && ` · ${asset.ip}`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {asset.criticalCount > 0 && (
+                            <span className="text-xs font-semibold text-red-500">
+                              {asset.criticalCount}C
+                            </span>
+                          )}
+                          {asset.highCount > 0 && (
+                            <span className="text-xs font-semibold text-orange-500">
+                              {asset.highCount}H
+                            </span>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {asset.vulnCount}
+                          </Badge>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <HardDrive className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                    <h3 className="font-medium text-muted-foreground">No vulnerable assets</h3>
+                    <p className="text-sm text-muted-foreground/70 mt-1">
+                      Assets with findings will appear here
+                    </p>
+                  </div>
+                )}
+                <div className="mt-4 pt-4 border-t">
+                  <Link href="/dashboard/assets">
+                    <Button variant="ghost" size="sm" className="w-full">
+                      View all assets
+                      <ArrowUpRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Scans (full-width) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Scans</CardTitle>
+              <CardDescription>Latest scan activity</CardDescription>
+            </CardHeader>
+            <CardContent>
                 {stats.scans.recent.length > 0 ? (
                   <div className="space-y-3">
                     {stats.scans.recent.map((scan: any) => {
@@ -446,7 +510,6 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
 
           {/* Category Bar Chart + Trend Line */}
           <div className="grid gap-6 lg:grid-cols-2">

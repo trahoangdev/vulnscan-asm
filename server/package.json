@@ -19,6 +19,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.25.0",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-rate-limit": "^7.4.0",
@@ -29,10 +30,11 @@
     "morgan": "^1.10.0",
     "nodemailer": "^6.9.0",
     "socket.io": "^4.8.0",
-    "winston": "^3.15.0",
-    "zod": "^3.23.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^10.0.0",
-    "crypto": "^1.0.1"
+    "winston": "^3.15.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -43,6 +45,8 @@
     "@types/morgan": "^1.9.9",
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^6.4.16",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
     "prisma": "^5.22.0",
     "tsx": "^4.19.0",

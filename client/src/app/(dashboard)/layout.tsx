@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Target,
@@ -19,8 +19,15 @@ import {
   Shield,
   User,
   HardDrive,
+  Check,
+  ExternalLink,
+  AlertTriangle,
+  Info,
+  ShieldCheck,
+  Radio,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth';
 import { ProtectedRoute } from '@/components/providers/protected-route';
 import { notificationsApi } from '@/services/api';
@@ -39,6 +46,21 @@ const bottomNav = [
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
+function formatTimeAgo(dateStr: string): string {
+  const now = Date.now();
+  const d = new Date(dateStr).getTime();
+  const diff = now - d;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -49,6 +71,8 @@ export default function DashboardLayout({
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   // Fetch unread notification count from API
   const { data: unreadData } = useQuery({
@@ -57,12 +81,63 @@ export default function DashboardLayout({
     refetchInterval: 60000, // Refresh every minute
   });
 
+  // Fetch recent notifications for dropdown
+  const { data: recentNotifsData, refetch: refetchNotifs } = useQuery({
+    queryKey: ['notifications', 'recent'],
+    queryFn: () => notificationsApi.list({ limit: 5 }),
+    refetchInterval: 60000,
+  });
+
   // Real-time notifications via WebSocket
   const { unreadCount: socketUnread, setUnreadCount } = useNotifications();
 
   // Combine API count + socket increments
   const apiUnread = unreadData?.data?.count ?? 0;
   const totalUnread = apiUnread + socketUnread;
+
+  const recentNotifications = recentNotifsData?.data?.data ?? [];
+  const queryClient = useQueryClient();
+
+  // Close notification dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    if (notifOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [notifOpen]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationsApi.markAllAsRead();
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setUnreadCount(0);
+    } catch {}
+  };
+
+  const NOTIF_ICON: Record<string, React.ElementType> = {
+    SCAN_COMPLETED: ShieldCheck,
+    SCAN_FAILED: AlertTriangle,
+    CRITICAL_VULN_FOUND: ShieldAlert,
+    HIGH_VULN_FOUND: ShieldAlert,
+    NEW_ASSET_DISCOVERED: Radio,
+    CERT_EXPIRING: AlertTriangle,
+    SYSTEM: Info,
+  };
+
+  const NOTIF_COLOR: Record<string, string> = {
+    SCAN_COMPLETED: 'text-green-500',
+    SCAN_FAILED: 'text-red-500',
+    CRITICAL_VULN_FOUND: 'text-red-500',
+    HIGH_VULN_FOUND: 'text-orange-500',
+    NEW_ASSET_DISCOVERED: 'text-blue-500',
+    CERT_EXPIRING: 'text-yellow-500',
+    SYSTEM: 'text-gray-500',
+  };
 
   const handleLogout = () => {
     logout();
@@ -169,9 +244,17 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Notifications */}
-              <Link href="/dashboard/notifications">
-                <Button variant="ghost" size="icon" className="relative">
+              {/* Notification Center Dropdown */}
+              <div className="relative" ref={notifRef}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative"
+                  onClick={() => {
+                    setNotifOpen(!notifOpen);
+                    setUserMenuOpen(false);
+                  }}
+                >
                   <Bell className="h-5 w-5" />
                   {totalUnread > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
@@ -179,7 +262,76 @@ export default function DashboardLayout({
                     </span>
                   )}
                 </Button>
-              </Link>
+
+                {notifOpen && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-card border rounded-xl shadow-xl z-50 overflow-hidden">
+                    {/* Dropdown Header */}
+                    <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                      <h3 className="text-sm font-semibold">Notifications</h3>
+                      {totalUnread > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <Check className="h-3 w-3" />
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Notification Items */}
+                    <div className="max-h-80 overflow-y-auto">
+                      {recentNotifications.length > 0 ? (
+                        recentNotifications.map((notif: any) => {
+                          const Icon = NOTIF_ICON[notif.type] || Info;
+                          const color = NOTIF_COLOR[notif.type] || 'text-gray-500';
+                          return (
+                            <div
+                              key={notif.id}
+                              className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b last:border-0 ${
+                                !notif.isRead ? 'bg-primary/5' : ''
+                              }`}
+                            >
+                              <Icon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${color}`} />
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm leading-tight ${!notif.isRead ? 'font-semibold' : 'font-medium'}`}>
+                                  {notif.title}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                                  {notif.message}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground/70 mt-1">
+                                  {formatTimeAgo(notif.createdAt)}
+                                </p>
+                              </div>
+                              {!notif.isRead && (
+                                <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                          <Bell className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                          <p className="text-sm text-muted-foreground">No notifications yet</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dropdown Footer */}
+                    <div className="border-t px-4 py-2.5 bg-muted/30">
+                      <Link
+                        href="/dashboard/notifications"
+                        onClick={() => setNotifOpen(false)}
+                        className="text-xs text-primary hover:underline flex items-center justify-center gap-1"
+                      >
+                        View all notifications
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* User Menu */}
               <div className="relative">

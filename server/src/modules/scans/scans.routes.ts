@@ -14,5 +14,6 @@ router.post('/', scanRateLimiter, validateBody(createScanSchema), scansControlle
 router.get('/:id', scansController.getById);
 router.post('/:id/cancel', scansController.cancel);
 router.get('/:id/findings', scansController.getFindings);
+router.get('/:id/results', scansController.getResults);
 
 export default router;

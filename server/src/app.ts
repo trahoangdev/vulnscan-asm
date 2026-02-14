@@ -4,11 +4,13 @@ import helmet from 'helmet';
 import hpp from 'hpp';
 import morgan from 'morgan';
 import { createServer } from 'http';
+import swaggerUi from 'swagger-ui-express';
 
 import { env } from './config/env';
 import { logger } from './utils/logger';
 import { prisma } from './config/database';
 import { redis } from './config/redis';
+import { swaggerSpec } from './config/swagger';
 import { initializeSocket } from './socket';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { apiRateLimiter } from './middleware/rateLimiter';
@@ -56,6 +58,16 @@ app.get('/health', (_req, res) => {
     service: env.APP_NAME,
     version: '1.0.0',
   });
+});
+
+// ===== API Documentation (Swagger) =====
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'VulnScan ASM — API Docs',
+  customCss: '.swagger-ui .topbar { display: none }',
+}));
+app.get('/api-docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
 });
 
 // ===== API Routes =====

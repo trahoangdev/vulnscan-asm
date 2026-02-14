@@ -16,6 +16,7 @@ export const dashboardService = {
       vulnsByStatus,
       vulnsByCategory,
       vulnsTrend,
+      topVulnAssets,
     ] = await Promise.all([
       // Total targets
       prisma.target.count({ where: { orgId } }),
@@ -79,6 +80,27 @@ export const dashboardService = {
         GROUP BY DATE(vf."created_at")
         ORDER BY date ASC
       `,
+
+      // Top 5 vulnerable assets (most open findings)
+      prisma.$queryRaw`
+        SELECT
+          a."id",
+          a."value",
+          a."type",
+          a."ip",
+          a."http_status" as "httpStatus",
+          COUNT(vf."id")::int as "vulnCount",
+          COUNT(CASE WHEN vf."severity" = 'CRITICAL' THEN 1 END)::int as "criticalCount",
+          COUNT(CASE WHEN vf."severity" = 'HIGH' THEN 1 END)::int as "highCount"
+        FROM "assets" a
+        JOIN "targets" t ON a."target_id" = t."id"
+        JOIN "vuln_findings" vf ON vf."asset_id" = a."id"
+        WHERE t."org_id" = ${orgId}
+          AND vf."status" NOT IN ('FALSE_POSITIVE', 'FIXED')
+        GROUP BY a."id", a."value", a."type", a."ip", a."http_status"
+        ORDER BY "vulnCount" DESC
+        LIMIT 5
+      `,
     ]);
 
     // Compute severity breakdown
@@ -133,6 +155,16 @@ export const dashboardService = {
         })),
         trend: vulnsTrend,
       },
+      topVulnerableAssets: (topVulnAssets as any[]).map((a) => ({
+        id: a.id,
+        value: a.value,
+        type: a.type,
+        ip: a.ip,
+        httpStatus: a.httpStatus,
+        vulnCount: a.vulnCount,
+        criticalCount: a.criticalCount,
+        highCount: a.highCount,
+      })),
     };
   },
 };
