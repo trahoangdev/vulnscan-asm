@@ -6,7 +6,6 @@
  */
 
 import prisma from '../../config/database';
-import { ApiError } from '../../utils/ApiError';
 import { logger } from '../../utils/logger';
 
 // ── Slack Block Kit helpers ────────────────────────────────────────────────

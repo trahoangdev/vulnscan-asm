@@ -652,7 +652,7 @@ export class AuthService {
     clientIp: string;
   }) {
     // Check if OAuth account already linked
-    let oauthAccount = await prisma.oAuthAccount.findUnique({
+    const oauthAccount = await prisma.oAuthAccount.findUnique({
       where: { provider_providerId: { provider: data.provider, providerId: data.providerId } },
       include: { user: { include: { orgMemberships: { include: { organization: true }, take: 1 } } } },
     });

@@ -20,7 +20,7 @@ export const changePasswordSchema = z.object({
     .min(VALIDATION.PASSWORD_MIN_LENGTH)
     .max(VALIDATION.PASSWORD_MAX_LENGTH)
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/,
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/,
       'Password must contain at least 1 uppercase, 1 lowercase, 1 number, and 1 special character',
     ),
 });
