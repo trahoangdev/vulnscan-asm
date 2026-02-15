@@ -425,7 +425,7 @@ export class AdminService {
     return setting;
   }
 
-  async batchUpdateSettings(settings: Array<{ key: string; value: any; category?: string; label?: string }>, adminId: string, ip?: string) {
+  async batchUpdateSettings(settings: Array<{ key: string; value?: any; category?: string; label?: string }>, adminId: string, ip?: string) {
     const results = await prisma.$transaction(
       settings.map((s) =>
         prisma.systemSetting.upsert({

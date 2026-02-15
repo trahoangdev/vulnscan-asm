@@ -107,10 +107,22 @@ class RedisScanWorker:
             if scan_config:
                 if scan_config.get("excludePaths"):
                     engine_options["exclude_paths"] = scan_config["excludePaths"]
+                if scan_config.get("excludeSubdomains"):
+                    engine_options["exclude_subdomains"] = scan_config["excludeSubdomains"]
+                if scan_config.get("excludePorts"):
+                    engine_options["exclude_ports"] = scan_config["excludePorts"]
+                if scan_config.get("excludeModules"):
+                    engine_options["exclude_modules"] = scan_config["excludeModules"]
+                if scan_config.get("exclusionRules"):
+                    engine_options["exclusion_rules"] = scan_config["exclusionRules"]
                 if scan_config.get("maxConcurrent"):
                     engine_options["max_concurrent"] = scan_config["maxConcurrent"]
                 if scan_config.get("requestDelay"):
                     engine_options["request_delay"] = scan_config["requestDelay"]
+                if scan_config.get("maxDepth"):
+                    engine_options["max_depth"] = scan_config["maxDepth"]
+                if scan_config.get("timeout"):
+                    engine_options["timeout"] = scan_config["timeout"]
 
             try:
                 result = loop.run_until_complete(

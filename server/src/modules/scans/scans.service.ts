@@ -1,7 +1,7 @@
 import prisma from '../../config/database';
 import { ApiError } from '../../utils/ApiError';
 import { parsePagination, parseSort } from '../../utils/helpers';
-import { SCAN_PROFILES, PLAN_LIMITS } from '../../../../shared/constants/index';
+import { SCAN_PROFILES, PLAN_LIMITS } from '../../constants/shared';
 import { scanQueue } from '../../config/queue';
 import type { CreateScanInput } from './scans.schema';
 
@@ -93,6 +93,7 @@ export class ScansService {
         profile: data.profile,
         modules,
         status: 'QUEUED',
+        scanConfig: data.scanConfig ? (data.scanConfig as any) : undefined,
       },
       include: {
         target: { select: { id: true, value: true, type: true } },

@@ -52,14 +52,34 @@ export function isValidDomain(domain: string): boolean {
  * Validate IP address format
  */
 export function isValidIp(ip: string): boolean {
-  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (!ip) return false;
+  // IPv4: each octet 0-255
+  const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const v4Match = ipv4Regex.exec(ip);
+  if (v4Match) {
+    return v4Match.slice(1).every((o) => {
+      const n = parseInt(o, 10);
+      return n >= 0 && n <= 255;
+    });
+  }
+  // IPv6
   const ipv6Regex = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
-  return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+  return ipv6Regex.test(ip);
 }
 
 /**
  * Calculate expiry time from string like "15m", "7d", "1h"
  */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 export function parseExpiry(expiry: string): number {
   const match = expiry.match(/^(\d+)([smhd])$/);
   if (!match) return 900000; // default 15min

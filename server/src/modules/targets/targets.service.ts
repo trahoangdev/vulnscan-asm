@@ -2,8 +2,14 @@ import prisma from '../../config/database';
 import { ApiError } from '../../utils/ApiError';
 import { generateVerificationToken } from '../../utils/crypto';
 import { isValidDomain, isValidIp, parsePagination, parseSort } from '../../utils/helpers';
-import { PLAN_LIMITS } from '../../../../shared/constants/index';
 import { logger } from '../../utils/logger';
+
+const PLAN_LIMITS = {
+  STARTER:      { maxTargets: 1,   maxScansPerMonth: 10,  maxTeamMembers: 1,  apiAccess: false, scheduling: false },
+  PROFESSIONAL: { maxTargets: 5,   maxScansPerMonth: 50,  maxTeamMembers: 3,  apiAccess: true,  scheduling: true },
+  BUSINESS:     { maxTargets: 20,  maxScansPerMonth: 200, maxTeamMembers: 10, apiAccess: true,  scheduling: true },
+  ENTERPRISE:   { maxTargets: -1,  maxScansPerMonth: -1,  maxTeamMembers: -1, apiAccess: true,  scheduling: true },
+} as const;
 import dns from 'dns/promises';
 import https from 'https';
 import http from 'http';

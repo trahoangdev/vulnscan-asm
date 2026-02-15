@@ -29,7 +29,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { dashboardApi } from '@/services/api';
+import { dashboardApi, vulnerabilitiesApi } from '@/services/api';
 
 const SEVERITY_COLORS: Record<string, string> = {
   CRITICAL: '#ef4444',
@@ -69,6 +69,20 @@ function getScoreColor(score: number): string {
   if (score >= 40) return '#f97316';
   return '#ef4444';
 }
+
+// OWASP Top 10 (2021) mapping to VulnCategory values
+const OWASP_TOP_10 = [
+  { id: 'A01', name: 'Broken Access Control', categories: ['IDOR', 'PATH_TRAVERSAL', 'OPEN_REDIRECT', 'CORS_MISCONFIG', 'CSRF', 'DIRECTORY_LISTING'] },
+  { id: 'A02', name: 'Cryptographic Failures', categories: ['SSL_TLS', 'CERT_ISSUE', 'COOKIE_SECURITY'] },
+  { id: 'A03', name: 'Injection', categories: ['SQL_INJECTION', 'XSS_REFLECTED', 'XSS_STORED', 'COMMAND_INJECTION', 'LFI', 'RFI', 'SSRF'] },
+  { id: 'A04', name: 'Insecure Design', categories: [] },
+  { id: 'A05', name: 'Security Misconfiguration', categories: ['SECURITY_HEADERS', 'HTTP_METHODS', 'INFO_DISCLOSURE', 'SENSITIVE_FILE', 'DEFAULT_CREDENTIALS'] },
+  { id: 'A06', name: 'Vulnerable Components', categories: ['OUTDATED_SOFTWARE'] },
+  { id: 'A07', name: 'Auth Failures', categories: [] },
+  { id: 'A08', name: 'Data Integrity Failures', categories: [] },
+  { id: 'A09', name: 'Logging & Monitoring', categories: [] },
+  { id: 'A10', name: 'Server-Side Request Forgery', categories: ['SSRF'] },
+];
 
 function getScoreLabel(score: number): string {
   if (score >= 90) return 'Excellent';
@@ -680,6 +694,99 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* OWASP Top 10 Compliance Posture */}
+          <Card>
+            <CardHeader>
+              <CardTitle>OWASP Top 10 Compliance</CardTitle>
+              <CardDescription>Security posture mapped to OWASP Top 10 (2021) categories</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                // Build a category→count map from the stats
+                const catCountMap: Record<string, number> = {};
+                if (stats?.vulnerabilities?.byCategory) {
+                  for (const c of stats.vulnerabilities.byCategory) {
+                    catCountMap[c.category] = c.count;
+                  }
+                }
+                const owaspResults = OWASP_TOP_10.map((item) => {
+                  const issues = item.categories.reduce((sum, cat) => sum + (catCountMap[cat] || 0), 0);
+                  const status = item.categories.length === 0 ? 'N/A' : issues === 0 ? 'PASS' : 'FAIL';
+                  return { ...item, issues, status };
+                });
+                const passCount = owaspResults.filter((r) => r.status === 'PASS').length;
+                const failCount = owaspResults.filter((r) => r.status === 'FAIL').length;
+                const naCount = owaspResults.filter((r) => r.status === 'N/A').length;
+                const applicable = passCount + failCount;
+                const compliancePercent = applicable > 0 ? Math.round((passCount / applicable) * 100) : 100;
+
+                return (
+                  <div className="space-y-4">
+                    {/* Summary */}
+                    <div className="flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-3xl font-bold" style={{ color: getScoreColor(compliancePercent) }}>
+                          {compliancePercent}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">Compliance</p>
+                      </div>
+                      <div className="flex gap-4 text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-3 w-3 rounded-full bg-green-500" />
+                          <span>{passCount} Pass</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-3 w-3 rounded-full bg-red-500" />
+                          <span>{failCount} Fail</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-3 w-3 rounded-full bg-gray-300" />
+                          <span>{naCount} N/A</span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* OWASP items grid */}
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {owaspResults.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                        >
+                          <div
+                            className={`flex-shrink-0 h-2.5 w-2.5 rounded-full ${
+                              item.status === 'PASS' ? 'bg-green-500' :
+                              item.status === 'FAIL' ? 'bg-red-500' : 'bg-gray-300'
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {item.id}: {item.name}
+                            </p>
+                          </div>
+                          {item.status === 'FAIL' && (
+                            <Badge variant="destructive" className="text-[10px] h-5">
+                              {item.issues} issue{item.issues !== 1 && 's'}
+                            </Badge>
+                          )}
+                          {item.status === 'PASS' && (
+                            <Badge className="text-[10px] h-5 bg-green-100 text-green-700 hover:bg-green-100">
+                              Pass
+                            </Badge>
+                          )}
+                          {item.status === 'N/A' && (
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              N/A
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

@@ -26,6 +26,7 @@ tenacity>=8.2.0
 # Dev
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
+pytest-httpx>=0.30.0
 black>=23.0.0
 ruff>=0.1.0
 mypy>=1.7.0

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { VALIDATION } from '../../../../shared/constants/index';
+
+const VALIDATION = {
+  PASSWORD_MIN_LENGTH: 8,
+  PASSWORD_MAX_LENGTH: 128,
+  NAME_MIN_LENGTH: 2,
+  NAME_MAX_LENGTH: 100,
+} as const;
 
 export const updateProfileSchema = z.object({
   name: z.string().min(VALIDATION.NAME_MIN_LENGTH).max(VALIDATION.NAME_MAX_LENGTH).optional(),

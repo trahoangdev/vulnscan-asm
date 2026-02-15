@@ -80,6 +80,30 @@ TECH_SIGNATURES: list[dict[str, Any]] = [
     }},
 ]
 
+# JavaScript libraries detected from script src or inline references
+JS_LIBRARY_SIGNATURES: list[dict[str, Any]] = [
+    {"name": "jQuery", "category": "JS Library", "patterns": [r"jquery[.-](\d+\.\d+[\.\d]*)", r"jquery\.min\.js"]},
+    {"name": "Lodash", "category": "JS Library", "patterns": [r"lodash[.-](\d+\.\d+[\.\d]*)", r"lodash\.min\.js"]},
+    {"name": "Moment.js", "category": "JS Library", "patterns": [r"moment[.-](\d+\.\d+[\.\d]*)", r"moment\.min\.js"]},
+    {"name": "Bootstrap", "category": "CSS/JS Framework", "patterns": [r"bootstrap[.-](\d+\.\d+[\.\d]*)", r"bootstrap\.min\.(js|css)"]},
+    {"name": "Tailwind CSS", "category": "CSS Framework", "patterns": [r"tailwindcss", r"tailwind\.min\.css"]},
+    {"name": "D3.js", "category": "JS Library", "patterns": [r"d3[.-](\d+\.\d+[\.\d]*)", r"d3\.min\.js"]},
+    {"name": "Chart.js", "category": "JS Library", "patterns": [r"chart[.-](\d+\.\d+[\.\d]*)", r"chart\.min\.js"]},
+    {"name": "Axios", "category": "JS Library", "patterns": [r"axios[.-](\d+\.\d+[\.\d]*)", r"axios\.min\.js"]},
+    {"name": "Socket.IO", "category": "JS Library", "patterns": [r"socket\.io[.-](\d+\.\d+[\.\d]*)", r"socket\.io\.min\.js"]},
+    {"name": "Three.js", "category": "JS Library", "patterns": [r"three[.-](\d+\.\d+[\.\d]*)", r"three\.min\.js"]},
+    {"name": "GSAP", "category": "JS Library", "patterns": [r"gsap[.-](\d+\.\d+[\.\d]*)", r"gsap\.min\.js"]},
+    {"name": "Backbone.js", "category": "JS Library", "patterns": [r"backbone[.-](\d+\.\d+[\.\d]*)", r"backbone\.min\.js"]},
+    {"name": "Underscore.js", "category": "JS Library", "patterns": [r"underscore[.-](\d+\.\d+[\.\d]*)", r"underscore\.min\.js"]},
+    {"name": "Alpine.js", "category": "JS Framework", "patterns": [r"alpinejs", r"x-data=", r"alpine\.min\.js"]},
+    {"name": "Svelte", "category": "JS Framework", "patterns": [r"__svelte", r"svelte-"]},
+    {"name": "Ember.js", "category": "JS Framework", "patterns": [r"ember[.-](\d+\.\d+[\.\d]*)", r"ember\.min\.js", r"data-ember"]},
+    {"name": "Handlebars", "category": "JS Library", "patterns": [r"handlebars[.-](\d+\.\d+[\.\d]*)", r"Handlebars\.compile"]},
+    {"name": "Polyfill.io", "category": "JS Library", "patterns": [r"polyfill\.io"]},
+    {"name": "Font Awesome", "category": "Icon Library", "patterns": [r"font-awesome", r"fontawesome", r"fa-[a-z]"]},
+    {"name": "Material UI", "category": "UI Library", "patterns": [r"@mui/material", r"MuiButton", r"material-ui"]},
+]
+
 
 class TechDetector(BaseModule):
     """Detects technologies used by a website."""
@@ -155,6 +179,32 @@ class TechDetector(BaseModule):
                                 },
                             )
                         )
+
+                # JS Library detection from page body and script tags
+                js_libs_found: list[dict[str, str]] = []
+                for lib in JS_LIBRARY_SIGNATURES:
+                    for pattern in lib["patterns"]:
+                        match = re.search(pattern, body, re.IGNORECASE)
+                        if match:
+                            version = match.group(1) if match.lastindex and match.lastindex >= 1 else None
+                            entry = {"name": lib["name"], "category": lib["category"]}
+                            if version:
+                                entry["version"] = version
+                            js_libs_found.append(entry)
+                            assets.append(
+                                Asset(
+                                    type="JS_LIBRARY",
+                                    value=f"{lib['name']}" + (f" v{version}" if version else ""),
+                                    metadata={
+                                        "category": lib["category"],
+                                        "version": version,
+                                        "detected_on": base_url,
+                                    },
+                                )
+                            )
+                            break  # One match per lib is enough
+
+                raw_output["js_libraries"] = js_libs_found
 
             raw_output["detected_technologies"] = detected
             log.info("Tech detection completed", technologies=len(detected))

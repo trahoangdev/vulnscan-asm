@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Sentry } from '../config/sentry';
 import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
 import { env } from '../config/env';
@@ -14,6 +15,10 @@ export function errorHandler(
 ) {
   // Known API errors
   if (err instanceof ApiError) {
+    // Only capture server errors to Sentry
+    if (err.statusCode >= 500) {
+      Sentry.captureException(err);
+    }
     return res.status(err.statusCode).json({
       success: false,
       error: {
@@ -26,6 +31,7 @@ export function errorHandler(
 
   // Unknown errors
   logger.error('Unhandled error:', err);
+  Sentry.captureException(err);
 
   const statusCode = 500;
   const message =

@@ -12,6 +12,7 @@ router.get('/', reportsController.list);
 router.post('/', validateBody(generateReportSchema), reportsController.generate);
 router.get('/:id', reportsController.getById);
 router.get('/:id/download', reportsController.download);
+router.get('/scans/:scanId/sarif', reportsController.exportSarif);
 router.delete('/:id', reportsController.delete);
 
 export default router;

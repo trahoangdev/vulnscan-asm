@@ -9,6 +9,10 @@ from scanner.modules.vuln_checker import VulnChecker
 from scanner.modules.subdomain_takeover import SubdomainTakeover
 from scanner.modules.admin_detector import AdminDetector
 from scanner.modules.nvd_cve_matcher import NvdCveMatcher
+from scanner.modules.waf_detector import WafDetector
+from scanner.modules.recon_module import ReconModule
+from scanner.modules.default_creds import DefaultCredsChecker
+from scanner.modules.api_discovery import ApiDiscovery
 
 __all__ = [
     "PortScanner",
@@ -20,6 +24,10 @@ __all__ = [
     "SubdomainTakeover",
     "AdminDetector",
     "NvdCveMatcher",
+    "WafDetector",
+    "ReconModule",
+    "DefaultCredsChecker",
+    "ApiDiscovery",
 ]
 
 # Module registry keyed by module name
@@ -33,4 +41,8 @@ MODULE_REGISTRY = {
     "subdomain_takeover": SubdomainTakeover,
     "admin_detector": AdminDetector,
     "nvd_cve_matcher": NvdCveMatcher,
+    "waf_detector": WafDetector,
+    "recon_module": ReconModule,
+    "default_creds_checker": DefaultCredsChecker,
+    "api_discovery": ApiDiscovery,
 }

@@ -1,6 +1,8 @@
 """Scan engine orchestrator - coordinates module execution."""
 
 import asyncio
+import ipaddress
+import socket
 import time
 from typing import Any
 
@@ -20,6 +22,7 @@ SCAN_PROFILES: dict[str, list[str]] = {
         "web_crawler",
         "tech_detector",
         "admin_detector",
+        "recon_module",
     ],
     "DEEP": [
         "dns_enumerator",
@@ -27,6 +30,8 @@ SCAN_PROFILES: dict[str, list[str]] = {
         "ssl_analyzer",
         "web_crawler",
         "tech_detector",
+        "waf_detector",
+        "recon_module",
         "vuln_checker",
         "subdomain_takeover",
         "admin_detector",
@@ -64,6 +69,22 @@ class ScanEngine:
         log = logger.bind(target=target, profile=profile)
         log.info("Starting scan")
 
+        # ── Enforce private IP blocking ──
+        if self._is_blocked_target(target):
+            log.warning("Target resolves to blocked IP range", target=target)
+            return {
+                "target": target,
+                "profile": profile,
+                "duration_seconds": time.time() - start,
+                "modules_completed": 0,
+                "modules_total": 0,
+                "assets": [],
+                "findings": [],
+                "module_results": {},
+                "errors": [f"Target '{target}' resolves to a blocked/private IP range."],
+                "summary": {"total_findings": 0, "severity_counts": {}, "risk_score": 0, "security_score": 100},
+            }
+
         # Determine which modules to run
         if profile == "CUSTOM" and opts.get("modules"):
             module_names = [m for m in opts["modules"] if m in MODULE_REGISTRY]
@@ -80,6 +101,15 @@ class ScanEngine:
 
         # Build shared options for modules
         exclude_paths: list[str] = opts.get("exclude_paths", [])
+        exclude_subdomains: list[str] = opts.get("exclude_subdomains", [])
+        exclude_ports: list[int] = opts.get("exclude_ports", [])
+        exclude_modules: list[str] = opts.get("exclude_modules", [])
+        exclusion_rules: list[dict] = opts.get("exclusion_rules", [])
+
+        # Filter out excluded modules
+        if exclude_modules:
+            module_names = [m for m in module_names if m not in exclude_modules]
+            total_modules = len(module_names)
 
         for i, module_name in enumerate(module_names):
             module_cls = MODULE_REGISTRY.get(module_name)
@@ -106,6 +136,12 @@ class ScanEngine:
                 # Pass exclusion rules
                 if exclude_paths:
                     module_opts["exclude_paths"] = exclude_paths
+                if exclude_subdomains:
+                    module_opts["exclude_subdomains"] = exclude_subdomains
+                if exclude_ports:
+                    module_opts["exclude_ports"] = exclude_ports
+                if exclusion_rules:
+                    module_opts["exclusion_rules"] = exclusion_rules
 
                 result: ModuleResult = await asyncio.wait_for(
                     module.run(target, module_opts),
@@ -224,3 +260,39 @@ class ScanEngine:
                 await self.progress_callback(progress, message)
             except Exception:
                 pass
+
+    @staticmethod
+    def _is_blocked_target(target: str) -> bool:
+        """Check if target resolves to a blocked/private IP range."""
+        blocked_networks = [
+            ipaddress.ip_network(cidr) for cidr in config.blocked_cidrs
+        ]
+
+        # Strip protocol/path to get hostname
+        hostname = target
+        for prefix in ("https://", "http://"):
+            if hostname.startswith(prefix):
+                hostname = hostname[len(prefix):]
+        hostname = hostname.split("/")[0].split(":")[0]
+
+        # Check if it's a direct IP
+        try:
+            ip = ipaddress.ip_address(hostname)
+            return any(ip in net for net in blocked_networks)
+        except ValueError:
+            pass
+
+        # Resolve hostname and check
+        try:
+            results = socket.getaddrinfo(hostname, None)
+            for _, _, _, _, sockaddr in results:
+                try:
+                    ip = ipaddress.ip_address(sockaddr[0])
+                    if any(ip in net for net in blocked_networks):
+                        return True
+                except ValueError:
+                    pass
+        except socket.gaierror:
+            pass
+
+        return False

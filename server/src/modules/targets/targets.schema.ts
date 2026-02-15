@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { VALIDATION } from '../../../../shared/constants/index';
+
+const VALIDATION = {
+  TARGET_LABEL_MAX_LENGTH: 100,
+  NOTES_MAX_LENGTH: 1000,
+  TAGS_MAX_COUNT: 10,
+  TAG_MAX_LENGTH: 30,
+} as const;
 
 export const createTargetSchema = z.object({
   type: z.enum(['DOMAIN', 'IP', 'CIDR']).default('DOMAIN'),

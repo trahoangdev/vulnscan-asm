@@ -135,6 +135,14 @@ export const usersApi = {
   updateMe: (data: { name?: string; timezone?: string }) =>
     apiClient.put('/users/me', data),
 
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return apiClient.post('/users/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     apiClient.put('/users/me/password', data),
 
@@ -263,4 +271,58 @@ export const adminApi = {
 
   cancelScan: (id: string) =>
     apiClient.post(`/admin/scans/${id}/cancel`),
+};
+
+// ── Billing / Subscription ──────────────────────────────────────
+
+export const billingApi = {
+  getSubscription: () =>
+    apiClient.get('/billing/subscription'),
+
+  createCheckout: (plan: string) =>
+    apiClient.post('/billing/checkout', {
+      plan,
+      successUrl: `${window.location.origin}/dashboard/billing?status=success`,
+    }),
+
+  createPortal: () =>
+    apiClient.post('/billing/portal'),
+
+  cancel: () =>
+    apiClient.post('/billing/cancel'),
+
+  resume: () =>
+    apiClient.post('/billing/resume'),
+};
+
+// ── Alert Rules ──────────────────────────────────────
+
+export const alertsApi = {
+  list: (params?: Record<string, any>) =>
+    apiClient.get('/alerts', { params }),
+
+  getById: (id: string) =>
+    apiClient.get(`/alerts/${id}`),
+
+  create: (data: any) =>
+    apiClient.post('/alerts', data),
+
+  update: (id: string, data: any) =>
+    apiClient.put(`/alerts/${id}`, data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/alerts/${id}`),
+};
+
+// ── Integrations ──────────────────────────────────────
+
+export const integrationsApi = {
+  jiraTest: (config: { baseUrl: string; email: string; apiToken: string }) =>
+    apiClient.post('/integrations/jira/test', config),
+
+  jiraProjects: (config: { baseUrl: string; email: string; apiToken: string }) =>
+    apiClient.post('/integrations/jira/projects', config),
+
+  jiraCreateIssue: (data: { baseUrl: string; email: string; apiToken: string; projectKey: string; findingId: string }) =>
+    apiClient.post('/integrations/jira/issues', data),
 };

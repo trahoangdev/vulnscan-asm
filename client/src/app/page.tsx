@@ -218,6 +218,7 @@ function Navigation() {
   const links = [
     { label: 'Features', href: '#features' },
     { label: 'How It Works', href: '#how-it-works' },
+    { label: 'Pricing', href: '#pricing' },
     { label: 'Stats', href: '#stats' },
   ];
 
@@ -962,6 +963,214 @@ function TestimonialsSection() {
 }
 
 /* ═══════════════════════════════════════════
+   SECTION: PRICING
+   ═══════════════════════════════════════════ */
+
+const PRICING_PLANS = [
+  {
+    name: 'Starter',
+    price: 'Free',
+    period: '',
+    description: 'Perfect for individual researchers and small projects.',
+    color: 'from-green-500 to-emerald-500',
+    borderColor: 'border-green-500/20 hover:border-green-500/40',
+    bgGlow: 'bg-green-500/5',
+    features: [
+      '1 target',
+      '10 scans/month',
+      'Basic vulnerability scanning',
+      'Email notifications',
+      'Community support',
+    ],
+  },
+  {
+    name: 'Professional',
+    price: '$49',
+    period: '/month',
+    popular: true,
+    description: 'For growing teams who need comprehensive scanning.',
+    color: 'from-blue-500 to-cyan-500',
+    borderColor: 'border-blue-500/30 hover:border-blue-500/50',
+    bgGlow: 'bg-blue-500/5',
+    features: [
+      '10 targets',
+      '100 scans/month',
+      'All scanner modules',
+      'Scheduled scans',
+      'PDF/SARIF reports',
+      'Team collaboration (5 members)',
+      'API access',
+      'Slack & Webhook integrations',
+      'Priority support',
+    ],
+  },
+  {
+    name: 'Business',
+    price: '$149',
+    period: '/month',
+    description: 'Advanced features for security-conscious organizations.',
+    color: 'from-purple-500 to-violet-500',
+    borderColor: 'border-purple-500/20 hover:border-purple-500/40',
+    bgGlow: 'bg-purple-500/5',
+    features: [
+      '50 targets',
+      '500 scans/month',
+      'Everything in Professional',
+      'Custom report branding',
+      'Jira integration',
+      'Alert rules & thresholds',
+      'Data retention policies',
+      'Team collaboration (25 members)',
+      'Dedicated support',
+    ],
+  },
+  {
+    name: 'Enterprise',
+    price: '$499',
+    period: '/month',
+    description: 'Tailored solutions for large-scale security operations.',
+    color: 'from-amber-500 to-orange-500',
+    borderColor: 'border-amber-500/20 hover:border-amber-500/40',
+    bgGlow: 'bg-amber-500/5',
+    features: [
+      'Unlimited targets',
+      'Unlimited scans',
+      'Everything in Business',
+      'Custom scanner modules',
+      'On-premise deployment',
+      'SSO/SAML',
+      'SLA guarantee',
+      'Dedicated account manager',
+    ],
+  },
+];
+
+function PricingSection() {
+  return (
+    <section id="pricing" className="relative py-32">
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(59,130,246,0.06),transparent_60%)]" />
+
+      <div className="container mx-auto px-6 relative">
+        <FadeInWhenVisible className="text-center mb-20">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-6">
+            <Layers className="h-4 w-4" />
+            Simple Pricing
+          </div>
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+            Choose Your
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500">
+              {' '}Security Plan
+            </span>
+          </h2>
+          <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            Start free and scale as you grow. All plans include core scanning capabilities.
+            Powered by{' '}
+            <span className="text-blue-400 font-medium">Polar.sh</span> — no payment hassles.
+          </p>
+        </FadeInWhenVisible>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-5">
+          {PRICING_PLANS.map((plan, idx) => (
+            <FadeInWhenVisible key={plan.name} delay={idx * 0.1}>
+              <motion.div
+                whileHover={{ y: -8, scale: 1.02 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className={`relative group h-full rounded-2xl border ${
+                  plan.popular
+                    ? 'border-blue-500/40 shadow-xl shadow-blue-500/10'
+                    : plan.borderColor
+                } bg-slate-900/50 backdrop-blur-sm transition-all duration-500`}
+              >
+                {/* Popular badge */}
+                {plan.popular && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
+                    <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-blue-500/25">
+                      Most Popular
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-8 flex flex-col h-full">
+                  {/* Plan header */}
+                  <div className="mb-8">
+                    <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                    <p className="text-sm text-slate-400 mb-6">{plan.description}</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${plan.color}`}>
+                        {plan.price}
+                      </span>
+                      {plan.period && (
+                        <span className="text-slate-500 text-sm">{plan.period}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className={`h-px w-full bg-gradient-to-r ${plan.color} opacity-20 mb-8`} />
+
+                  {/* Features */}
+                  <ul className="space-y-3. flex-1 mb-8">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-3 text-sm">
+                        <CheckCircle className={`h-4 w-4 mt-0.5 shrink-0 text-transparent bg-clip-text bg-gradient-to-r ${plan.color}`}
+                          style={{
+                            color: plan.popular ? '#3b82f6' : plan.name === 'Starter' ? '#22c55e' : plan.name === 'Business' ? '#a855f7' : '#f59e0b',
+                          }}
+                        />
+                        <span className="text-slate-300">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* CTA button */}
+                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                    <Link
+                      href="/register"
+                      className={`block w-full text-center py-3.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
+                        plan.popular
+                          ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg shadow-blue-600/25'
+                          : 'border border-white/10 hover:border-white/20 hover:bg-white/5 text-white'
+                      }`}
+                    >
+                      {plan.price === 'Free' ? 'Get Started Free' : 'Start Free Trial'}
+                    </Link>
+                  </motion.div>
+                </div>
+
+                {/* Hover glow */}
+                <div className={`absolute inset-0 rounded-2xl ${plan.bgGlow} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
+              </motion.div>
+            </FadeInWhenVisible>
+          ))}
+        </div>
+
+        {/* Bottom note */}
+        <FadeInWhenVisible>
+          <div className="text-center mt-16 space-y-4">
+            <div className="flex flex-wrap justify-center gap-8 text-sm text-slate-400">
+              {[
+                'No credit card required',
+                'Cancel anytime',
+                'Tax handled by Polar.sh',
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500/80" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500">
+              All prices in USD. Payments securely processed by Polar.sh as Merchant of Record.
+            </p>
+          </div>
+        </FadeInWhenVisible>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════════════════
    SECTION: CTA
    ═══════════════════════════════════════════ */
 
@@ -1182,6 +1391,7 @@ export default function LandingPage() {
       <FeaturesSection />
       <HowItWorksSection />
       <StatsSection />
+      <PricingSection />
       <TestimonialsSection />
       <CTASection />
       <Footer />

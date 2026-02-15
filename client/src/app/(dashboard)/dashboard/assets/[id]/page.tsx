@@ -15,6 +15,8 @@ import {
   Loader2,
   ExternalLink,
   Lock,
+  Calendar,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -241,6 +243,151 @@ export default function AssetDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Discovery Timeline / Change History */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Discovery Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative space-y-0">
+                {/* Timeline line */}
+                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-border" />
+
+                {/* First Seen */}
+                <div className="flex gap-4 pb-4 relative">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
+                      <Eye className="h-3 w-3 text-green-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">First Discovered</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(asset.firstSeenAt).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Asset first appeared during a scan of {asset.target?.value}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Technology changes — show if technologies exist */}
+                {technologies.length > 0 && (
+                  <div className="flex gap-4 pb-4 relative">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Activity className="h-3 w-3 text-blue-600" />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Technologies Detected</p>
+                      <p className="text-xs text-muted-foreground">
+                        {technologies.length} technolog{technologies.length === 1 ? 'y' : 'ies'} identified
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {technologies.slice(0, 5).map((tech: any, i: number) => (
+                          <span key={i} className="text-[10px] px-1.5 py-0.5 bg-muted rounded">
+                            {typeof tech === 'string' ? tech : tech.name}
+                          </span>
+                        ))}
+                        {technologies.length > 5 && (
+                          <span className="text-[10px] text-muted-foreground">+{technologies.length - 5} more</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ports discovered */}
+                {ports.length > 0 && (
+                  <div className="flex gap-4 pb-4 relative">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center">
+                        <Wifi className="h-3 w-3 text-purple-600" />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Open Ports Found</p>
+                      <p className="text-xs text-muted-foreground">
+                        {ports.length} open port{ports.length !== 1 && 's'} discovered
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {ports.map((p: any, i: number) => (
+                          <span key={i} className="text-[10px] font-mono px-1.5 py-0.5 bg-muted rounded">
+                            {typeof p === 'number' ? p : p.port}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SSL Info detected */}
+                {sslInfo && (
+                  <div className="flex gap-4 pb-4 relative">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="h-6 w-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <Lock className="h-3 w-3 text-emerald-600" />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">SSL Certificate Detected</p>
+                      <p className="text-xs text-muted-foreground">
+                        Issued by {(sslInfo as any).issuer || 'Unknown'}
+                        {(sslInfo as any).grade && ` · Grade ${(sslInfo as any).grade}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vulnerabilities — show if findings exist */}
+                {asset.findings && asset.findings.length > 0 && (
+                  <div className="flex gap-4 pb-4 relative">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center">
+                        <Shield className="h-3 w-3 text-red-600" />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Vulnerabilities Found</p>
+                      <p className="text-xs text-muted-foreground">
+                        {asset.findings.length} finding{asset.findings.length !== 1 && 's'} detected across scans
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Last Seen */}
+                <div className="flex gap-4 relative">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
+                      <Clock className="h-3 w-3 text-gray-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Last Seen</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(asset.lastSeenAt).toLocaleString()}
+                    </p>
+                    {(() => {
+                      const firstSeen = new Date(asset.firstSeenAt).getTime();
+                      const lastSeen = new Date(asset.lastSeenAt).getTime();
+                      const days = Math.floor((lastSeen - firstSeen) / (1000 * 60 * 60 * 24));
+                      return days > 0 ? (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Tracked for {days} day{days !== 1 && 's'}
+                        </p>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar */}

@@ -50,9 +50,9 @@ export class WebhooksService {
         orgId,
         name: data.name,
         url: data.url,
-        secret: data.secret || null,
+        secret: data.secret || undefined,
         events: data.events,
-        headers: data.headers || null,
+        headers: data.headers || undefined,
       },
     });
   }

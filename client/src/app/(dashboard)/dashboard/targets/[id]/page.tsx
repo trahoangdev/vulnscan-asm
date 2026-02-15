@@ -22,8 +22,14 @@ import {
   Code,
   Wifi,
   Calendar,
+  Pencil,
+  X,
+  Save,
+  Tag,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -50,6 +56,9 @@ export default function TargetDetailPage() {
   const queryClient = useQueryClient();
   const [selectedMethod, setSelectedMethod] = useState<VerifyMethod>('DNS_TXT');
   const [copied, setCopied] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({ label: '', notes: '', tags: [] as string[], scanProfile: 'STANDARD' });
+  const [newTag, setNewTag] = useState('');
 
   const { data: targetRes, isLoading } = useQuery({
     queryKey: ['target', id],
@@ -82,6 +91,40 @@ export default function TargetDetailPage() {
       toast.error(err.response?.data?.error?.message || 'Verification failed');
     },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Record<string, any>) => targetsApi.update(id, data),
+    onSuccess: () => {
+      toast.success('Target updated');
+      queryClient.invalidateQueries({ queryKey: ['target', id] });
+      setIsEditing(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || 'Update failed');
+    },
+  });
+
+  const startEditing = () => {
+    setEditData({
+      label: target?.label || '',
+      notes: target?.notes || '',
+      tags: target?.tags || [],
+      scanProfile: target?.scanProfile || 'STANDARD',
+    });
+    setIsEditing(true);
+  };
+
+  const addTag = () => {
+    const tag = newTag.trim().toLowerCase();
+    if (tag && !editData.tags.includes(tag)) {
+      setEditData({ ...editData, tags: [...editData.tags, tag] });
+    }
+    setNewTag('');
+  };
+
+  const removeTag = (tag: string) => {
+    setEditData({ ...editData, tags: editData.tags.filter((t) => t !== tag) });
+  };
 
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -425,35 +468,137 @@ export default function TargetDetailPage() {
       {/* Target Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Target Information</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Target Information</CardTitle>
+            {!isEditing ? (
+              <Button variant="outline" size="sm" onClick={startEditing}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => updateMutation.mutate({
+                    label: editData.label || null,
+                    notes: editData.notes || null,
+                    tags: editData.tags,
+                    scanProfile: editData.scanProfile,
+                  })}
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <dl className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <dt className="text-sm text-muted-foreground">Created</dt>
-              <dd className="text-sm font-medium">{new Date(target.createdAt).toLocaleString()}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Last Scan</dt>
-              <dd className="text-sm font-medium">{target.lastScanAt ? new Date(target.lastScanAt).toLocaleString() : 'Never'}</dd>
-            </div>
-            {target.tags?.length > 0 && (
-              <div className="sm:col-span-2">
-                <dt className="text-sm text-muted-foreground mb-1">Tags</dt>
-                <dd className="flex gap-1 flex-wrap">
-                  {target.tags.map((tag: string) => (
-                    <span key={tag} className="px-2 py-0.5 bg-muted rounded-full text-xs">{tag}</span>
+          {isEditing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Label</label>
+                <Input
+                  value={editData.label}
+                  onChange={(e) => setEditData({ ...editData, label: e.target.value })}
+                  placeholder="e.g. Main Website, API Server"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Scan Profile</label>
+                <Select
+                  value={editData.scanProfile}
+                  onValueChange={(v) => setEditData({ ...editData, scanProfile: v })}
+                >
+                  <SelectTrigger className="w-full max-w-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="QUICK">Quick</SelectItem>
+                    <SelectItem value="STANDARD">Standard</SelectItem>
+                    <SelectItem value="DEEP">Deep</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Tags</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {editData.tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-full text-xs">
+                      <Tag className="h-3 w-3" />
+                      {tag}
+                      <button onClick={() => removeTag(tag)} className="hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
                   ))}
-                </dd>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                    placeholder="Add tag..."
+                    className="max-w-xs"
+                  />
+                  <Button variant="outline" size="sm" onClick={addTag} disabled={!newTag.trim()}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            )}
-            {target.notes && (
-              <div className="sm:col-span-2">
-                <dt className="text-sm text-muted-foreground">Notes</dt>
-                <dd className="text-sm">{target.notes}</dd>
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Notes</label>
+                <textarea
+                  value={editData.notes}
+                  onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                  placeholder="Optional notes about this target..."
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-md text-sm bg-background resize-y"
+                />
               </div>
-            )}
-          </dl>
+            </div>
+          ) : (
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-sm text-muted-foreground">Created</dt>
+                <dd className="text-sm font-medium">{new Date(target.createdAt).toLocaleString()}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-muted-foreground">Last Scan</dt>
+                <dd className="text-sm font-medium">{target.lastScanAt ? new Date(target.lastScanAt).toLocaleString() : 'Never'}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-muted-foreground">Scan Profile</dt>
+                <dd className="text-sm font-medium">{target.scanProfile || 'STANDARD'}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-muted-foreground">Security Score</dt>
+                <dd className="text-sm font-medium">{target.securityScore ?? 'N/A'}</dd>
+              </div>
+              {target.tags?.length > 0 && (
+                <div className="sm:col-span-2">
+                  <dt className="text-sm text-muted-foreground mb-1">Tags</dt>
+                  <dd className="flex gap-1 flex-wrap">
+                    {target.tags.map((tag: string) => (
+                      <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-full text-xs">
+                        <Tag className="h-3 w-3" />{tag}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              )}
+              {target.notes && (
+                <div className="sm:col-span-2">
+                  <dt className="text-sm text-muted-foreground">Notes</dt>
+                  <dd className="text-sm">{target.notes}</dd>
+                </div>
+              )}
+            </dl>
+          )}
         </CardContent>
       </Card>
     </div>

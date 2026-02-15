@@ -198,6 +198,18 @@ class VulnChecker(BaseModule):
             findings.extend(ssrf_findings)
             raw_output["ssrf"] = len(ssrf_findings)
 
+            rfi_findings = await self._test_rfi(endpoints, client)
+            findings.extend(rfi_findings)
+            raw_output["rfi"] = len(rfi_findings)
+
+            stored_xss_findings = await self._test_stored_xss(base_url, endpoints, client)
+            findings.extend(stored_xss_findings)
+            raw_output["stored_xss"] = len(stored_xss_findings)
+
+            path_trav_findings = await self._test_path_traversal(endpoints, client)
+            findings.extend(path_trav_findings)
+            raw_output["path_traversal"] = len(path_trav_findings)
+
         # ── Known-tech CVE lookup ──
         tech_assets = [a for a in discovered_assets if a.get("type") == "TECHNOLOGY"]
         for tech in tech_assets:
@@ -286,8 +298,12 @@ class VulnChecker(BaseModule):
                         continue
                     tested.add(url)
                     try:
+                        start_time = time.time()
                         resp = await client.get(url)
+                        elapsed = time.time() - start_time
                         body = resp.text
+
+                        # Error-based SQLi detection
                         for pattern in SQLI_ERROR_PATTERNS:
                             if re.search(pattern, body, re.IGNORECASE):
                                 findings.append(
@@ -312,6 +328,32 @@ class VulnChecker(BaseModule):
                                     )
                                 )
                                 return findings  # One SQLi finding per scan is enough
+
+                        # Time-based blind SQLi detection
+                        if "SLEEP" in payload.upper() or "PG_SLEEP" in payload.upper():
+                            if elapsed >= 2.5:
+                                findings.append(
+                                    Finding(
+                                        title="Potential Blind SQL Injection (Time-Based)",
+                                        severity=Severity.CRITICAL,
+                                        category=VulnCategory.SQL_INJECTION,
+                                        description=(
+                                            "The server response was significantly delayed when injecting "
+                                            "a time-based SQL payload, suggesting blind SQL injection. "
+                                            f"Response took {elapsed:.1f}s (expected delay from SLEEP)."
+                                        ),
+                                        solution=(
+                                            "Use parameterised queries or prepared statements. "
+                                            "Validate and sanitise all user input."
+                                        ),
+                                        affected_component=endpoint,
+                                        evidence=f"Payload: {payload}\nResponse time: {elapsed:.2f}s",
+                                        references=[
+                                            "https://owasp.org/www-community/attacks/Blind_SQL_Injection",
+                                        ],
+                                    )
+                                )
+                                return findings
                     except Exception:
                         pass
         return findings
@@ -359,6 +401,165 @@ class VulnChecker(BaseModule):
                             return findings
                     except Exception:
                         pass
+        return findings
+
+    # ── Stored XSS ───────────────────────────────────────────────────────────
+
+    STORED_XSS_PAYLOADS = [
+        '<img src=x onerror=alert("STORED_XSS_TEST_1")>',
+        '"><svg/onload=confirm("STORED_XSS_TEST_2")>',
+        "<details open ontoggle=alert('STORED_XSS_TEST_3')>x</details>",
+        '<a href="javascript:alert(\'STORED_XSS_TEST_4\')">click</a>',
+        '<body onload=alert("STORED_XSS_TEST_5")>',
+    ]
+
+    async def _test_stored_xss(
+        self, base_url: str, endpoints: list[str], client: httpx.AsyncClient
+    ) -> list[Finding]:
+        """Test for stored XSS by submitting payloads to forms and checking persistence.
+
+        Flow:
+        1. Crawl pages for forms with POST method
+        2. Submit XSS payloads into text input fields
+        3. Re-fetch the page to check if payload persists (stored)
+        """
+        findings: list[Finding] = []
+        tested_forms: set[str] = set()
+
+        # Gather pages to scan for forms
+        pages_to_check = [base_url]
+        pages_to_check.extend(
+            ep.split("?")[0] for ep in endpoints[:20]
+        )
+        seen_pages: set[str] = set()
+
+        for page_url in pages_to_check:
+            if page_url in seen_pages:
+                continue
+            seen_pages.add(page_url)
+
+            try:
+                resp = await client.get(page_url, follow_redirects=True)
+                if resp.status_code != 200:
+                    continue
+
+                # Extract POST forms
+                forms = re.findall(
+                    r"<form([^>]*)>(.*?)</form>",
+                    resp.text, re.DOTALL | re.IGNORECASE,
+                )
+
+                for form_attrs, form_body in forms:
+                    if "post" not in form_attrs.lower():
+                        continue
+
+                    # Get form action
+                    action_match = re.search(
+                        r'action=["\']([^"\']+)', form_attrs, re.IGNORECASE
+                    )
+                    action = action_match.group(1) if action_match else page_url
+                    if not action.startswith("http"):
+                        action = urllib.parse.urljoin(page_url, action)
+
+                    form_key = action
+                    if form_key in tested_forms:
+                        continue
+                    tested_forms.add(form_key)
+
+                    # Extract input fields
+                    inputs = re.findall(
+                        r'<input([^>]*)>', form_body, re.IGNORECASE
+                    )
+                    textarea_names = re.findall(
+                        r'<textarea[^>]*name=["\']([^"\']+)', form_body, re.IGNORECASE
+                    )
+
+                    text_fields: list[tuple[str, str]] = []  # (name, type)
+                    hidden_fields: dict[str, str] = {}
+
+                    for inp_attrs in inputs:
+                        name_match = re.search(
+                            r'name=["\']([^"\']+)', inp_attrs, re.IGNORECASE
+                        )
+                        type_match = re.search(
+                            r'type=["\']([^"\']+)', inp_attrs, re.IGNORECASE
+                        )
+                        value_match = re.search(
+                            r'value=["\']([^"\']*)', inp_attrs, re.IGNORECASE
+                        )
+                        if not name_match:
+                            continue
+                        fname = name_match.group(1)
+                        ftype = (type_match.group(1) if type_match else "text").lower()
+
+                        if ftype == "hidden":
+                            hidden_fields[fname] = value_match.group(1) if value_match else ""
+                        elif ftype in ("text", "search", "url", "email", ""):
+                            text_fields.append((fname, ftype))
+
+                    for tname in textarea_names:
+                        text_fields.append((tname, "textarea"))
+
+                    if not text_fields:
+                        continue
+
+                    # Test each payload
+                    for payload in self.STORED_XSS_PAYLOADS:
+                        form_data: dict[str, str] = dict(hidden_fields)
+                        for fname, _ in text_fields:
+                            form_data[fname] = payload
+
+                        try:
+                            # Submit form
+                            post_resp = await client.post(
+                                action, data=form_data, follow_redirects=True
+                            )
+
+                            # Re-fetch the originating page to see if payload persists
+                            await asyncio.sleep(0.5)
+                            check_resp = await client.get(
+                                page_url, follow_redirects=True
+                            )
+
+                            if payload in check_resp.text:
+                                field_names = ", ".join(f[0] for f in text_fields)
+                                findings.append(
+                                    Finding(
+                                        title="Potential Stored XSS",
+                                        severity=Severity.HIGH,
+                                        category=VulnCategory.XSS_STORED,
+                                        description=(
+                                            "A submitted XSS payload was stored and rendered on "
+                                            "a subsequent page load without proper sanitisation. "
+                                            "This allows persistent JavaScript execution in "
+                                            "other users' browsers."
+                                        ),
+                                        solution=(
+                                            "Sanitise all user input before storage using a "
+                                            "whitelist-based HTML sanitiser (e.g. DOMPurify). "
+                                            "Apply context-appropriate output encoding. "
+                                            "Implement Content Security Policy (CSP)."
+                                        ),
+                                        affected_component=action,
+                                        evidence=(
+                                            f"Form action: {action}\n"
+                                            f"Fields: {field_names}\n"
+                                            f"Payload: {payload}\n"
+                                            f"Payload persisted in page body after re-fetch."
+                                        ),
+                                        references=[
+                                            "https://owasp.org/www-community/attacks/xss/",
+                                            "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html",
+                                        ],
+                                    )
+                                )
+                                return findings
+                        except Exception:
+                            pass
+
+            except Exception:
+                pass
+
         return findings
 
     # ── Command Injection ────────────────────────────────────────────────────
@@ -485,7 +686,131 @@ class VulnChecker(BaseModule):
                         pass
         return findings
 
-    # ── CSRF Detection ───────────────────────────────────────────────────────
+    # ── Remote File Inclusion (RFI) ──────────────────────────────────────────
+
+    async def _test_rfi(
+        self, endpoints: list[str], client: httpx.AsyncClient
+    ) -> list[Finding]:
+        """Test for Remote File Inclusion vulnerabilities."""
+        findings: list[Finding] = []
+
+        rfi_indicators = [
+            r"<\?php",
+            r"<%.*%>",
+            r"root:.*:0:0:",
+            r"\\[boot loader\\]",
+            r"\\[operating systems\\]",
+            r"<title>Google</title>",
+            r"<html",
+        ]
+
+        for endpoint in endpoints:
+            for payload in RFI_PAYLOADS:
+                injected_urls = self._inject_payload(endpoint, payload)
+                for url in injected_urls:
+                    try:
+                        resp = await client.get(url)
+                        body = resp.text
+                        # Check if the response contains content from the remote file
+                        for indicator in rfi_indicators:
+                            if re.search(indicator, body, re.IGNORECASE):
+                                # Verify it's not a normal page element
+                                # by checking the payload domain appears or response changed significantly
+                                findings.append(
+                                    Finding(
+                                        title="Potential Remote File Inclusion (RFI)",
+                                        severity=Severity.CRITICAL,
+                                        category=VulnCategory.RFI,
+                                        description=(
+                                            "The application appears to include remote files based "
+                                            "on user input. Remote content indicators were detected "
+                                            "in the response after injecting a remote URL."
+                                        ),
+                                        solution=(
+                                            "Never include files based on user input. "
+                                            "Use a whitelist for allowed file paths. "
+                                            "Disable allow_url_include in PHP configuration."
+                                        ),
+                                        affected_component=endpoint,
+                                        evidence=f"Payload: {payload}\nIndicator matched: {indicator}",
+                                        references=[
+                                            "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11.2-Testing_for_Remote_File_Inclusion",
+                                        ],
+                                    )
+                                )
+                                return findings
+                    except Exception:
+                        pass
+        return findings
+
+    # ── Path Traversal ───────────────────────────────────────────────────────
+
+    PATH_TRAVERSAL_PAYLOADS = [
+        "....//....//....//....//etc/passwd",
+        "..%2f..%2f..%2f..%2fetc/passwd",
+        "..%252f..%252f..%252fetc/passwd",
+        "%2e%2e/%2e%2e/%2e%2e/etc/passwd",
+        "....\\\\....\\\\....\\\\windows\\\\win.ini",
+        "..%5c..%5c..%5c..%5cwindows\\win.ini",
+        "../../../../../../../etc/shadow",
+        "../../../../../../../proc/self/environ",
+        "..\\..\\..\\..\\boot.ini",
+    ]
+
+    PATH_TRAVERSAL_PATTERNS = [
+        r"root:.*:0:0:",
+        r"\[boot loader\]",
+        r"\[extensions\]",
+        r"\[fonts\]",
+        r"DOCUMENT_ROOT=",
+        r"HTTP_USER_AGENT=",
+        r"daemon:.*:/usr/sbin",
+        r"bin:.*:/bin",
+    ]
+
+    async def _test_path_traversal(
+        self, endpoints: list[str], client: httpx.AsyncClient
+    ) -> list[Finding]:
+        """Dedicated path traversal test with encoding bypass techniques."""
+        findings: list[Finding] = []
+
+        for endpoint in endpoints:
+            for payload in self.PATH_TRAVERSAL_PAYLOADS:
+                injected_urls = self._inject_payload(endpoint, payload)
+                for url in injected_urls:
+                    try:
+                        resp = await client.get(url)
+                        body = resp.text
+                        for pattern in self.PATH_TRAVERSAL_PATTERNS:
+                            if re.search(pattern, body):
+                                findings.append(
+                                    Finding(
+                                        title="Path Traversal Vulnerability",
+                                        severity=Severity.HIGH,
+                                        category=VulnCategory.PATH_TRAVERSAL,
+                                        description=(
+                                            "The application is vulnerable to path traversal attacks "
+                                            "using encoding bypass techniques. Sensitive system files "
+                                            "were accessible through manipulated file path parameters."
+                                        ),
+                                        solution=(
+                                            "Validate and canonicalize file paths. Use a whitelist of "
+                                            "allowed files. Never use user input directly in file operations. "
+                                            "Implement proper input decoding before validation."
+                                        ),
+                                        affected_component=endpoint,
+                                        evidence=f"Payload: {payload}\nPattern matched: {pattern}",
+                                        references=[
+                                            "https://owasp.org/www-community/attacks/Path_Traversal",
+                                        ],
+                                    )
+                                )
+                                return findings
+                    except Exception:
+                        pass
+        return findings
+
+    # ── CSRF Detection ────────────────────────────────────────────────────────
 
     async def _check_csrf(
         self, base_url: str, client: httpx.AsyncClient

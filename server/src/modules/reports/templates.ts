@@ -1,4 +1,4 @@
-import { OWASP_TOP_10, SEVERITY_CONFIG, VULN_TO_OWASP } from '../../../../shared/constants/index';
+import { OWASP_TOP_10, SEVERITY_CONFIG, VULN_TO_OWASP } from '../../constants/shared';
 
 /**
  * Report template engine — generates HTML reports
@@ -160,7 +160,7 @@ export function executiveSummaryHtml(data: any): string {
     <table>
       <thead><tr><th>Category</th><th>Count</th></tr></thead>
       <tbody>
-        ${Object.entries(summary.categoryBreakdown)
+        ${Object.entries(summary.categoryBreakdown || {})
           .sort((a: any, b: any) => b[1] - a[1])
           .slice(0, 10)
           .map(([cat, count]: any) => `<tr><td>${cat.replace(/_/g, ' ')}</td><td>${count}</td></tr>`)
@@ -416,3 +416,236 @@ export function pciDssComplianceHtml(data: any): string {
 
   return baseLayout('PCI-DSS Compliance Report', body, generatedAt);
 }
+
+// ========================
+// Custom Report Templates & Branding (#52 / #53)
+// ========================
+
+export interface ReportBranding {
+  companyName?: string;
+  logoUrl?: string;         // URL to company logo image
+  primaryColor?: string;    // hex color e.g. '#1e40af'
+  accentColor?: string;     // hex color for secondary elements
+  headerText?: string;      // custom header text
+  footerText?: string;      // custom footer disclaimer
+  showWatermark?: boolean;
+}
+
+function brandedLayout(
+  title: string,
+  body: string,
+  generatedAt: string,
+  branding: ReportBranding,
+): string {
+  const primary = branding.primaryColor || BRAND_COLOR;
+  const accent = branding.accentColor || '#6366f1';
+  const company = branding.companyName || 'VulnScan ASM';
+  const footer = branding.footerText || `© ${new Date().getFullYear()} ${company} — Confidential Security Report`;
+
+  const logoHtml = branding.logoUrl
+    ? `<img src="${branding.logoUrl}" alt="${company}" style="max-height:40px;margin-right:12px;" />`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${title} — ${company}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1f2937; line-height: 1.6; font-size: 13px; }
+    .page { padding: 40px; max-width: 900px; margin: auto; }
+    .header { border-bottom: 3px solid ${primary}; padding-bottom: 20px; margin-bottom: 30px; display: flex; align-items: center; }
+    .header h1 { color: ${primary}; font-size: 24px; }
+    .header .meta { color: #6b7280; font-size: 12px; margin-top: 6px; }
+    h2 { color: ${primary}; font-size: 18px; margin: 28px 0 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+    h3 { font-size: 15px; margin: 16px 0 8px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12px; }
+    th { background: #f3f4f6; padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 2px solid ${primary}; }
+    td { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) { background: #f9fafb; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 16px 0 24px; }
+    .stat-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; text-align: center; }
+    .stat-card .value { font-size: 28px; font-weight: 700; color: ${primary}; }
+    .stat-card .label { color: #6b7280; font-size: 11px; text-transform: uppercase; margin-top: 4px; }
+    .sev-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; margin: 10px 0 20px; }
+    .sev-bar > div { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 600; }
+    .finding-card { border: 1px solid #e5e7eb; border-left: 4px solid ${accent}; border-radius: 8px; padding: 14px; margin-bottom: 10px; page-break-inside: avoid; }
+    .finding-card .title { font-weight: 600; font-size: 14px; }
+    .finding-card .meta { color: #6b7280; font-size: 12px; margin-top: 4px; }
+    .finding-card .desc { margin-top: 8px; font-size: 12px; }
+    .footer { border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 40px; color: #9ca3af; font-size: 11px; text-align: center; }
+    .owasp-item { border-left: 3px solid ${primary}; padding: 10px 14px; margin-bottom: 12px; background: #f8fafc; }
+    .owasp-item .id { font-weight: 700; color: ${primary}; }
+    .owasp-item .count { float: right; background: #ef4444; color: #fff; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    ${branding.showWatermark === false ? '' : `.watermark { position: fixed; bottom: 10px; right: 10px; opacity: 0.08; font-size: 48px; font-weight: 900; color: ${primary}; transform: rotate(-30deg); pointer-events: none; }`}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      ${logoHtml}
+      <div>
+        <h1>${branding.headerText || `🛡️ ${company}`}</h1>
+        <div class="meta">Generated on ${new Date(generatedAt).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}</div>
+      </div>
+    </div>
+    ${body}
+    <div class="footer">${footer}</div>
+    ${branding.showWatermark !== false ? `<div class="watermark">${company}</div>` : ''}
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Custom template types available for selection.
+ */
+export type ReportTemplateType =
+  | 'executive_summary'
+  | 'technical_detail'
+  | 'owasp_compliance'
+  | 'pci_dss'
+  | 'vulnerability_list'
+  | 'asset_inventory';
+
+/**
+ * Generate a branded report with a custom template.
+ */
+export function generateCustomReport(
+  templateType: ReportTemplateType,
+  data: {
+    target: string;
+    scanDate: string;
+    riskScore: number;
+    findings: any[];
+    assets?: any[];
+    severityCounts: Record<string, number>;
+  },
+  branding: ReportBranding = {},
+): string {
+  const generatedAt = new Date().toISOString();
+
+  switch (templateType) {
+    case 'vulnerability_list':
+      return generateVulnListTemplate(data, generatedAt, branding);
+    case 'asset_inventory':
+      return generateAssetInventoryTemplate(data, generatedAt, branding);
+    default:
+      // For standard templates, use existing generators but wrap in branded layout
+      return generateVulnListTemplate(data, generatedAt, branding);
+  }
+}
+
+function generateVulnListTemplate(
+  data: { target: string; findings: any[]; severityCounts: Record<string, number> },
+  generatedAt: string,
+  branding: ReportBranding,
+): string {
+  const body = `
+    <h2>Vulnerability Report — ${data.target}</h2>
+
+    ${severityBarHtml(data.severityCounts)}
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Severity</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Affected Component</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.findings.map((f: any, i: number) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${severityBadge(f.severity)}</td>
+            <td>${f.title}</td>
+            <td>${f.category}</td>
+            <td>${f.affectedUrl || f.affectedParam || '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    ${data.findings.length === 0 ? '<p style="color:#16a34a;font-weight:600;">✅ No vulnerabilities found!</p>' : ''}
+
+    <h2>Detailed Findings</h2>
+    ${data.findings.map((f: any) => `
+      <div class="finding-card">
+        <div class="title">${severityBadge(f.severity)} ${f.title}</div>
+        <div class="meta">${f.category} ${f.cveId ? `| ${f.cveId}` : ''} ${f.cweId ? `| ${f.cweId}` : ''}</div>
+        <div class="desc">${f.description || ''}</div>
+        ${f.remediation ? `<div style="margin-top:8px;"><strong>Remediation:</strong> ${f.remediation}</div>` : ''}
+      </div>
+    `).join('')}
+  `;
+
+  return brandedLayout('Vulnerability Report', body, generatedAt, branding);
+}
+
+function generateAssetInventoryTemplate(
+  data: { target: string; assets?: any[]; findings: any[]; severityCounts: Record<string, number> },
+  generatedAt: string,
+  branding: ReportBranding,
+): string {
+  const assets = data.assets || [];
+  const assetsByType: Record<string, any[]> = {};
+  for (const asset of assets) {
+    const type = asset.type || 'OTHER';
+    if (!assetsByType[type]) assetsByType[type] = [];
+    assetsByType[type].push(asset);
+  }
+
+  const body = `
+    <h2>Asset Inventory — ${data.target}</h2>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="value">${assets.length}</div>
+        <div class="label">Total Assets</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">${Object.keys(assetsByType).length}</div>
+        <div class="label">Asset Types</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">${data.findings.length}</div>
+        <div class="label">Vulnerabilities</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">${data.severityCounts.CRITICAL || 0}</div>
+        <div class="label">Critical</div>
+      </div>
+    </div>
+
+    ${Object.entries(assetsByType).map(([type, items]) => `
+      <h3>${type} (${items.length})</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Value</th>
+            <th>Status</th>
+            <th>First Seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.slice(0, 50).map((a: any) => `
+            <tr>
+              <td>${a.value}</td>
+              <td>${a.isActive !== false ? '<span class="pass">Active</span>' : '<span class="fail">Inactive</span>'}</td>
+              <td>${a.firstSeenAt ? new Date(a.firstSeenAt).toLocaleDateString() : '—'}</td>
+            </tr>
+          `).join('')}
+          ${items.length > 50 ? `<tr><td colspan="3" style="color:#6b7280">...and ${items.length - 50} more</td></tr>` : ''}
+        </tbody>
+      </table>
+    `).join('')}
+  `;
+
+  return brandedLayout('Asset Inventory Report', body, generatedAt, branding);
+}
+

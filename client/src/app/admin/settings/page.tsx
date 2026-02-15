@@ -73,7 +73,7 @@ export default function AdminSettingsPage() {
   const hasChanges = Object.keys(editedValues).length > 0;
 
   const getDisplayValue = (key: string, originalValue: any) => {
-    return editedValues.hasOwnProperty(key) ? editedValues[key] : originalValue;
+    return Object.hasOwn(editedValues, key) ? editedValues[key] : originalValue;
   };
 
   const handleChange = (key: string, value: any) => {
@@ -90,7 +90,7 @@ export default function AdminSettingsPage() {
 
   const renderSettingInput = (setting: any) => {
     const value = getDisplayValue(setting.key, setting.value);
-    const isEdited = editedValues.hasOwnProperty(setting.key);
+    const isEdited = Object.hasOwn(editedValues, setting.key);
 
     if (typeof setting.value === 'boolean') {
       return (

@@ -11,6 +11,7 @@ import {
   Loader2,
   LayoutList,
   FolderOpen,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { vulnerabilitiesApi } from '@/services/api';
+import { vulnerabilitiesApi, targetsApi } from '@/services/api';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -51,17 +52,27 @@ export default function VulnerabilitiesPage() {
   const [severity, setSeverity] = useState('all');
   const [status, setStatus] = useState('all');
   const [category, setCategory] = useState('all');
+  const [targetId, setTargetId] = useState('all');
   const [page, setPage] = useState(1);
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
 
+  const { data: targetsData } = useQuery({
+    queryKey: ['targets-filter-list'],
+    queryFn: () => targetsApi.list({ limit: 100 }),
+    staleTime: 60000,
+  });
+
+  const targetsList = targetsData?.data?.data || [];
+
   const { data, isLoading } = useQuery({
-    queryKey: ['vulnerabilities', search, severity, status, category, page],
+    queryKey: ['vulnerabilities', search, severity, status, category, targetId, page],
     queryFn: () =>
       vulnerabilitiesApi.list({
         search: search || undefined,
         severity: severity !== 'all' ? severity : undefined,
         status: status !== 'all' ? status : undefined,
         category: category !== 'all' ? category : undefined,
+        targetId: targetId !== 'all' ? targetId : undefined,
         page,
         limit: ITEMS_PER_PAGE,
       }),
@@ -97,6 +108,40 @@ export default function VulnerabilitiesPage() {
   })();
 
   const handleFilterChange = () => setPage(1);
+
+  const handleExport = async (format: 'csv' | 'json') => {
+    try {
+      const params: Record<string, any> = { format };
+      if (severity !== 'all') params.severity = severity;
+      if (status !== 'all') params.status = status;
+      if (category !== 'all') params.category = category;
+      if (targetId !== 'all') params.targetId = targetId;
+      if (search) params.search = search;
+
+      const resp = await vulnerabilitiesApi.exportFindings(params);
+
+      if (format === 'csv') {
+        const blob = resp.data instanceof Blob ? resp.data : new Blob([resp.data], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `vulnerabilities-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const jsonData = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data, null, 2);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `vulnerabilities-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      console.error('Export failed');
+    }
+  };
 
   const VulnRow = ({ vuln }: { vuln: any }) => {
     const sev = severityConfig[vuln.severity] || severityConfig.INFO;
@@ -151,9 +196,29 @@ export default function VulnerabilitiesPage() {
           </p>
         </div>
         {total > 0 && (
-          <Badge variant="secondary" className="text-sm">
-            {total} total
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-sm">
+              {total} total
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport('csv')}
+              className="gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport('json')}
+              className="gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              JSON
+            </Button>
+          </div>
         )}
       </div>
 
@@ -210,6 +275,19 @@ export default function VulnerabilitiesPage() {
             </SelectContent>
           </Select>
         )}
+        {targetsList.length > 0 && (
+          <Select value={targetId} onValueChange={(v) => { setTargetId(v); handleFilterChange(); }}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Target" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Targets</SelectItem>
+              {targetsList.map((t: any) => (
+                <SelectItem key={t.id} value={t.id}>{t.value}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Group by" />
@@ -242,7 +320,7 @@ export default function VulnerabilitiesPage() {
             <ShieldAlert className="h-12 w-12 text-muted-foreground/50 mb-3" />
             <h3 className="font-medium text-muted-foreground">No vulnerabilities found</h3>
             <p className="text-sm text-muted-foreground/70 mt-1">
-              {search || severity !== 'all' || status !== 'all' || category !== 'all'
+              {search || severity !== 'all' || status !== 'all' || category !== 'all' || targetId !== 'all'
                 ? 'Try adjusting your filters'
                 : 'Run a scan to discover vulnerabilities'}
             </p>

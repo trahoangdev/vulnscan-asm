@@ -1,9 +1,11 @@
 import prisma from '../config/database';
 import { scanQueue } from '../config/queue';
 import { logger } from '../utils/logger';
-import { SCAN_PROFILES, PLAN_LIMITS } from '../../../shared/constants/index';
+import { SCAN_PROFILES, PLAN_LIMITS } from '../constants/shared';
 import { sendEmail, weeklyDigestEmailHtml } from '../utils/email';
 import { env } from '../config/env';
+import { uploadReport } from '../utils/storage';
+import { processDataRetention } from './dataRetention';
 
 /**
  * Scan scheduler — checks targets with configured schedules
@@ -248,6 +250,234 @@ async function processWeeklyDigest() {
  * Start the scan scheduler — runs every 60 seconds
  */
 let schedulerInterval: NodeJS.Timeout | null = null;
+let lastReverifyRun: Date | null = null;
+let lastScheduledReportRun: Date | null = null;
+let lastDataRetentionRun: Date | null = null;
+
+/**
+ * Scheduled Report Delivery — sends scheduled reports via email
+ * Checks for ScheduledReport records that are due and generates+sends them.
+ */
+async function processScheduledReports() {
+  const now = new Date();
+
+  // Run at most once per hour
+  if (lastScheduledReportRun && (now.getTime() - lastScheduledReportRun.getTime()) < 55 * 60 * 1000) return;
+
+  lastScheduledReportRun = now;
+
+  try {
+    // Find scheduled reports that are due
+    const dueReports = await prisma.scheduledReport.findMany({
+      where: {
+        isActive: true,
+        nextRunAt: { lte: now },
+      },
+      include: {
+        organization: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    if (dueReports.length === 0) return;
+
+    logger.info(`📄 Scheduled reports: Processing ${dueReports.length} due reports`);
+
+    for (const report of dueReports) {
+      try {
+        // Gather scan data for the report period
+        const periodDays = report.frequency === 'DAILY' ? 1 : report.frequency === 'WEEKLY' ? 7 : 30;
+        const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
+
+        const [scans, findings, severityCounts] = await Promise.all([
+          prisma.scan.findMany({
+            where: {
+              target: { orgId: report.orgId },
+              status: 'COMPLETED',
+              completedAt: { gte: periodStart },
+            },
+            select: { id: true, targetId: true, status: true, completedAt: true, totalVulns: true },
+            orderBy: { completedAt: 'desc' },
+            take: 50,
+          }),
+          prisma.vulnFinding.count({
+            where: {
+              scan: { target: { orgId: report.orgId } },
+              firstFoundAt: { gte: periodStart },
+            },
+          }),
+          prisma.vulnFinding.groupBy({
+            by: ['severity'],
+            where: {
+              scan: { target: { orgId: report.orgId } },
+              status: { in: ['OPEN', 'IN_PROGRESS'] },
+            },
+            _count: true,
+          }),
+        ]);
+
+        const criticalCount = severityCounts.find((g) => g.severity === 'CRITICAL')?._count || 0;
+        const highCount = severityCounts.find((g) => g.severity === 'HIGH')?._count || 0;
+        const totalOpen = severityCounts.reduce((acc, g) => acc + g._count, 0);
+
+        // Build simple HTML report
+        const reportHtml = `
+          <h1>Scheduled Security Report — ${report.organization.name}</h1>
+          <p>Period: ${periodStart.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]}</p>
+          <p>Frequency: ${report.frequency}</p>
+          <hr>
+          <h2>Summary</h2>
+          <ul>
+            <li>Scans completed: ${scans.length}</li>
+            <li>New findings: ${findings}</li>
+            <li>Open findings: ${totalOpen} (${criticalCount} critical, ${highCount} high)</li>
+          </ul>
+          <p><a href="${env.CLIENT_URL}/dashboard">View full dashboard →</a></p>
+        `;
+
+        // Upload to S3
+        await uploadReport(report.orgId, 'scheduled', 'html', reportHtml);
+
+        // Send email to recipients
+        const recipients = (report.recipients as string[]) || [report.createdBy.email];
+        for (const recipient of recipients) {
+          await sendEmail({
+            to: recipient,
+            subject: `[${env.APP_NAME}] ${report.frequency} Security Report — ${report.organization.name}`,
+            html: reportHtml,
+          });
+        }
+
+        // Update next run date
+        const nextRunAt = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
+        await prisma.scheduledReport.update({
+          where: { id: report.id },
+          data: { lastRunAt: now, nextRunAt },
+        });
+
+        logger.info(`📄 Scheduled report delivered: ${report.id} to ${recipients.length} recipients`);
+      } catch (reportErr) {
+        logger.error(`Scheduled report failed: ${report.id}`, reportErr);
+      }
+    }
+  } catch (err) {
+    logger.error('Scheduled reports processing failed', err);
+  }
+}
+
+/**
+ * Re-verify domain ownership periodically.
+ * Runs once per day — checks that all verified targets still have their
+ * verification token (DNS TXT or HTTP file) in place.
+ */
+async function processReVerifyDomains() {
+  const now = new Date();
+
+  // Only run once per 24 hours
+  if (lastReverifyRun && (now.getTime() - lastReverifyRun.getTime()) < 23 * 60 * 60 * 1000) return;
+
+  lastReverifyRun = now;
+  logger.info('🔄 Re-verify domains: Starting daily check');
+
+  try {
+    const verifiedTargets = await prisma.target.findMany({
+      where: {
+        isActive: true,
+        verificationStatus: 'VERIFIED',
+        type: 'DOMAIN',
+      },
+      select: {
+        id: true,
+        value: true,
+        verificationToken: true,
+        verificationMethod: true,
+      },
+    });
+
+    if (verifiedTargets.length === 0) return;
+
+    let lostCount = 0;
+    for (const target of verifiedTargets) {
+      try {
+        const verified = await quickVerifyCheck(target);
+        if (!verified) {
+          lostCount++;
+          await prisma.target.update({
+            where: { id: target.id },
+            data: {
+              verificationStatus: 'PENDING',
+            },
+          });
+          logger.warn(`🔄 Re-verify: ${target.value} lost verification, status set to PENDING`);
+        }
+      } catch {
+        // Don't fail the entire batch
+      }
+    }
+
+    logger.info(`🔄 Re-verify completed: ${verifiedTargets.length} checked, ${lostCount} lost`);
+  } catch (err) {
+    logger.error('Re-verify domains failed', err);
+  }
+}
+
+/**
+ * Quick check if a target still passes verification.
+ * Tries DNS TXT and HTTP file methods.
+ */
+async function quickVerifyCheck(target: {
+  value: string;
+  verificationToken: string | null;
+  verificationMethod: string | null;
+}): Promise<boolean> {
+  if (!target.verificationToken) return true; // No token, skip
+
+  const token = target.verificationToken;
+
+  // Try DNS TXT check
+  try {
+    const dns = await import('dns').then((m) => m.promises);
+    const records = await dns.resolveTxt(`_vulnscan-verify.${target.value}`);
+    const flat = records.flat();
+    if (flat.some((r) => r.includes(token))) return true;
+  } catch {
+    // DNS check failed, try HTTP
+  }
+
+  // Try HTTP file check
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const resp = await fetch(`https://${target.value}/.well-known/vulnscan-verify.txt`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (resp.ok) {
+      const body = await resp.text();
+      if (body.trim().includes(token)) return true;
+    }
+  } catch {
+    // HTTP check failed too
+  }
+
+  // Try HTTP on port 80
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch(`http://${target.value}/.well-known/vulnscan-verify.txt`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (resp.ok) {
+      const body = await resp.text();
+      if (body.trim().includes(token)) return true;
+    }
+  } catch {
+    // All methods failed
+  }
+
+  return false;
+}
 
 export function startScanScheduler() {
   if (schedulerInterval) return;
@@ -267,6 +497,20 @@ export function startScanScheduler() {
     processWeeklyDigest().catch((err) => {
       logger.error('Scheduler: Weekly digest tick failed', err);
     });
+    processReVerifyDomains().catch((err) => {
+      logger.error('Scheduler: Re-verify domains tick failed', err);
+    });
+    processScheduledReports().catch((err) => {
+      logger.error('Scheduler: Scheduled reports tick failed', err);
+    });
+    // Data retention runs once per day
+    const now = new Date();
+    if (!lastDataRetentionRun || (now.getTime() - lastDataRetentionRun.getTime()) > 23 * 60 * 60 * 1000) {
+      lastDataRetentionRun = now;
+      processDataRetention().catch((err) => {
+        logger.error('Scheduler: Data retention tick failed', err);
+      });
+    }
   }, 60 * 1000);
 }
 

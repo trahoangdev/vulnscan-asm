@@ -145,7 +145,7 @@ export class TargetsController {
     try {
       const csvData = req.body.csv || req.body.data;
       if (!csvData || typeof csvData !== 'string') {
-        return ApiResponse.error(res, 'CSV data is required in the "csv" field', 400);
+        return ApiResponse.error(res, 400, 'VALIDATION_ERROR', 'CSV data is required in the "csv" field');
       }
       const result = await targetsService.bulkImport(req.user!.orgId, csvData);
       return ApiResponse.success(res, result);

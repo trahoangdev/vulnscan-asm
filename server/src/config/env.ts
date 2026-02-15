@@ -50,6 +50,17 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.string().default('debug'),
+
+  // Sentry
+  SENTRY_DSN: z.string().optional().default(''),
+
+  // Polar.sh
+  POLAR_ACCESS_TOKEN: z.string().optional().default(''),
+  POLAR_WEBHOOK_SECRET: z.string().optional().default(''),
+  POLAR_SERVER: z.enum(['sandbox', 'production']).optional().default('sandbox'),
+  POLAR_PRODUCT_PRO: z.string().optional().default(''),
+  POLAR_PRODUCT_BIZ: z.string().optional().default(''),
+  POLAR_PRODUCT_ENT: z.string().optional().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -8,6 +8,7 @@ import dns.resolver
 import dns.zone
 import dns.query
 import dns.exception
+import httpx
 
 from scanner.config import config
 from scanner.logger import logger
@@ -115,6 +116,49 @@ class DnsEnumerator(BaseModule):
                 )
             )
 
+        # DKIM check (common selectors)
+        dkim_selectors = ["default", "google", "selector1", "selector2", "k1", "mail", "dkim", "s1", "s2"]
+        dkim_found = False
+        for selector in dkim_selectors:
+            try:
+                dkim_domain = f"{selector}._domainkey.{target}"
+                answers = resolver.resolve(dkim_domain, "TXT")
+                for record in answers:
+                    txt = str(record)
+                    if "v=DKIM1" in txt.upper() or "p=" in txt:
+                        dkim_found = True
+                        raw_output["dkim"] = {"selector": selector, "record": txt}
+                        assets.append(
+                            Asset(
+                                type="DNS_RECORD",
+                                value=f"DKIM: {selector}._domainkey -> {txt[:80]}",
+                                metadata={"record_type": "DKIM", "selector": selector, "domain": target},
+                            )
+                        )
+                        break
+                if dkim_found:
+                    break
+            except Exception:
+                pass
+
+        if not dkim_found:
+            findings.append(
+                Finding(
+                    title="Missing DKIM Record",
+                    severity=Severity.MEDIUM,
+                    category=VulnCategory.EMAIL_SECURITY,
+                    description=(
+                        f"No DKIM record found for {target} with common selectors "
+                        f"({', '.join(dkim_selectors[:5])}...). DKIM helps prevent email spoofing."
+                    ),
+                    solution=(
+                        "Configure DKIM signing for your mail server and publish the public key "
+                        "as a TXT record at <selector>._domainkey.{target}."
+                    ),
+                    affected_component=target,
+                )
+            )
+
         # 2. Zone transfer attempt
         try:
             ns_answers = resolver.resolve(target, "NS")
@@ -150,12 +194,60 @@ class DnsEnumerator(BaseModule):
         except Exception:
             pass
 
-        # 3. Subdomain brute-force
+        # 3. Passive subdomain discovery via crt.sh (Certificate Transparency)
+        crtsh_subdomains: set[str] = set()
+        try:
+            async with httpx.AsyncClient(timeout=15, verify=False) as http_client:
+                resp = await http_client.get(
+                    f"https://crt.sh/?q=%.{target}&output=json",
+                    headers={"User-Agent": config.http_user_agent},
+                )
+                if resp.status_code == 200:
+                    crt_data = resp.json()
+                    for entry in crt_data:
+                        name_value = entry.get("name_value", "")
+                        for name in name_value.split("\n"):
+                            name = name.strip().lower()
+                            if name.endswith(f".{target}") and "*" not in name:
+                                crtsh_subdomains.add(name)
+                    log.info("crt.sh passive enum", found=len(crtsh_subdomains))
+
+                    for fqdn in crtsh_subdomains:
+                        try:
+                            loop = asyncio.get_event_loop()
+                            answers = await loop.run_in_executor(
+                                None, lambda f=fqdn: resolver.resolve(f, "A")
+                            )
+                            ips = [str(r) for r in answers]
+                            assets.append(
+                                Asset(
+                                    type="SUBDOMAIN",
+                                    value=fqdn,
+                                    metadata={"ips": ips, "source": "crt.sh"},
+                                )
+                            )
+                        except Exception:
+                            # Domain from CT log but doesn't resolve
+                            assets.append(
+                                Asset(
+                                    type="SUBDOMAIN",
+                                    value=fqdn,
+                                    metadata={"ips": [], "source": "crt.sh", "resolves": False},
+                                )
+                            )
+        except Exception as e:
+            errors.append(f"crt.sh lookup failed: {e}")
+
+        raw_output["crtsh_subdomains"] = len(crtsh_subdomains)
+
+        # 4. Subdomain brute-force
         wordlist = opts.get("wordlist", COMMON_SUBDOMAINS)
         discovered = 0
 
         async def check_subdomain(sub: str) -> Asset | None:
             fqdn = f"{sub}.{target}"
+            if fqdn in crtsh_subdomains:
+                return None  # Already discovered via crt.sh
             try:
                 loop = asyncio.get_event_loop()
                 answers = await loop.run_in_executor(

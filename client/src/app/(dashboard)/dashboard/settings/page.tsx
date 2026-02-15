@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   User,
@@ -15,6 +15,7 @@ import {
   Copy,
   CheckCircle,
   XCircle,
+  Camera,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -232,8 +233,46 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4 mb-4">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-bold">
-                  {(user?.name || 'U').charAt(0).toUpperCase()}
+                <div className="relative group">
+                  {(user as any)?.avatar ? (
+                    <img
+                      src={(user as any).avatar}
+                      alt="Avatar"
+                      className="h-16 w-16 rounded-full object-cover border-2 border-border"
+                    />
+                  ) : (
+                    <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-bold">
+                      {(user?.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/jpeg,image/png,image/gif,image/webp';
+                      input.onchange = async (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error('Image must be under 5MB');
+                          return;
+                        }
+                        try {
+                          const res = await usersApi.uploadAvatar(file);
+                          toast.success('Avatar updated!');
+                          queryClient.invalidateQueries({ queryKey: ['user'] });
+                          useAuthStore.getState().setUser({ ...user!, avatar: (res.data as any)?.data?.avatarUrl } as any);
+                        } catch {
+                          toast.error('Failed to upload avatar');
+                        }
+                      };
+                      input.click();
+                    }}
+                    className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <Camera className="h-5 w-5 text-white" />
+                  </button>
                 </div>
                 <div>
                   <p className="font-medium">{user?.name || 'User'}</p>

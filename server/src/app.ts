@@ -5,6 +5,10 @@ import hpp from 'hpp';
 import morgan from 'morgan';
 import { createServer } from 'http';
 import swaggerUi from 'swagger-ui-express';
+import { initSentry, Sentry } from './config/sentry';
+
+// Initialize Sentry before anything else
+initSentry();
 
 import { env } from './config/env';
 import { logger } from './utils/logger';
@@ -31,6 +35,9 @@ import organizationsRoutes from './modules/organizations/organizations.routes';
 import apiKeysRoutes from './modules/apikeys/apikeys.routes';
 import webhooksRoutes from './modules/webhooks/webhooks.routes';
 import adminRoutes from './modules/admin/admin.routes';
+import alertsRoutes from './modules/alerts/alerts.routes';
+import integrationsRoutes from './modules/integrations/integrations.routes';
+import billingRoutes from './modules/billing/billing.routes';
 import { subscribeScanResults } from './jobs/scan.worker';
 import { startScanScheduler } from './jobs/scheduler';
 
@@ -117,6 +124,12 @@ app.use(`${API_PREFIX}/organizations`, organizationsRoutes);
 app.use(`${API_PREFIX}/api-keys`, apiKeysRoutes);
 app.use(`${API_PREFIX}/webhooks`, webhooksRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
+app.use(`${API_PREFIX}/alerts`, alertsRoutes);
+app.use(`${API_PREFIX}/integrations`, integrationsRoutes);
+app.use(`${API_PREFIX}/billing`, billingRoutes);
+
+// ===== Sentry error handler =====
+Sentry.setupExpressErrorHandler(app);
 
 // ===== Error Handling =====
 app.use(notFoundHandler);

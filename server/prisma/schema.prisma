@@ -48,6 +48,8 @@ model User {
   notifications  Notification[]
   oauthAccounts  OAuthAccount[]
   auditLogs      AuditLog[]
+  scheduledReports ScheduledReport[] @relation("ScheduledReportCreator")
+  alertRules   AlertRule[]     @relation("AlertRuleCreator")
 
   @@map("users")
 }
@@ -99,8 +101,8 @@ model Organization {
   maxScansPerMonth Int      @default(10) @map("max_scans_per_month")
   scansUsed        Int      @default(0) @map("scans_used")
   billingEmail     String?  @map("billing_email")
-  stripeCustomerId String?  @map("stripe_customer_id")
-  stripeSubId      String?  @map("stripe_sub_id")
+  polarCustomerId  String?  @map("polar_customer_id")
+  polarSubId       String?  @map("polar_sub_id")
   isActive         Boolean  @default(true) @map("is_active")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
@@ -111,6 +113,9 @@ model Organization {
   apiKeys  ApiKey[]
   reports  Report[]
   webhooks Webhook[]
+  scheduledReports ScheduledReport[]
+  dataRetentionPolicy DataRetentionPolicy?
+  alertRules   AlertRule[]
 
   @@map("organizations")
 }
@@ -229,6 +234,7 @@ model Scan {
   mediumCount   Int?        @default(0) @map("medium_count")
   lowCount      Int?        @default(0) @map("low_count")
   infoCount     Int?        @default(0) @map("info_count")
+  scanConfig    Json?       @map("scan_config")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
@@ -544,4 +550,109 @@ model SystemSetting {
 
   @@index([category])
   @@map("system_settings")
+}
+
+// =============================================
+// SCHEDULED REPORTS
+// =============================================
+
+model ScheduledReport {
+  id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
+  createdById String   @map("created_by_id")
+  name        String
+  frequency   ReportFrequency @default(WEEKLY)
+  format      String   @default("html") // html, pdf, json
+  recipients  Json     @default("[]")   // array of email addresses
+  filters     Json?                     // optional filters (severity, target, etc.)
+  isActive    Boolean  @default(true)   @map("is_active")
+  lastRunAt   DateTime? @map("last_run_at")
+  nextRunAt   DateTime  @map("next_run_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ScheduledReportCreator", fields: [createdById], references: [id])
+
+  @@index([orgId, isActive])
+  @@index([nextRunAt])
+  @@map("scheduled_reports")
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// =============================================
+// DATA RETENTION POLICY
+// =============================================
+
+model DataRetentionPolicy {
+  id              String   @id @default(cuid())
+  orgId           String   @unique @map("org_id")
+  scanRetentionDays    Int @default(365) @map("scan_retention_days")
+  findingRetentionDays Int @default(730) @map("finding_retention_days")
+  assetRetentionDays   Int @default(365) @map("asset_retention_days")
+  auditLogRetentionDays Int @default(90) @map("audit_log_retention_days")
+  lastCleanupAt   DateTime? @map("last_cleanup_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("data_retention_policies")
+}
+
+// =============================================
+// ALERT RULES
+// =============================================
+
+model AlertRule {
+  id             String           @id @default(cuid())
+  orgId          String           @map("org_id")
+  createdById    String           @map("created_by_id")
+  name           String
+  description    String?
+  isActive       Boolean          @default(true) @map("is_active")
+
+  // Conditions
+  eventType      AlertEventType   @map("event_type")
+  severityFilter Severity[]       @default([CRITICAL, HIGH]) @map("severity_filter")
+  targetFilter   String[]         @default([]) @map("target_filter")  // target IDs, empty = all
+  categoryFilter String[]         @default([]) @map("category_filter") // VulnCategory values
+  threshold      Int              @default(1) // trigger when count >= threshold
+  timeWindowMins Int              @default(60) @map("time_window_mins") // within X minutes
+
+  // Actions
+  channels       String[]         @default(["in_app"]) // in_app, email, webhook, slack
+  webhookUrl     String?          @map("webhook_url")
+  emailRecipients Json?           @map("email_recipients") // array of emails
+  slackChannel   String?          @map("slack_channel")
+
+  // Tracking
+  lastTriggeredAt DateTime?       @map("last_triggered_at")
+  triggerCount    Int              @default(0) @map("trigger_count")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("AlertRuleCreator", fields: [createdById], references: [id])
+
+  @@index([orgId, isActive])
+  @@index([eventType])
+  @@map("alert_rules")
+}
+
+enum AlertEventType {
+  NEW_VULNERABILITY
+  SCAN_COMPLETED
+  SCAN_FAILED
+  CERT_EXPIRING
+  NEW_ASSET_DISCOVERED
+  SEVERITY_THRESHOLD
 }
