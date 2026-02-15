@@ -10,7 +10,7 @@ test.describe('Landing Page', () => {
   test('should have navigation links', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('nav')).toBeVisible();
-    await expect(page.getByRole('link', { name: /login|sign in/i })).toBeVisible();
+    await expect(page.locator('nav').getByRole('link', { name: /login|sign in/i })).toBeVisible();
   });
 
   test('should display pricing section', async ({ page }) => {
@@ -29,7 +29,7 @@ test.describe('Landing Page', () => {
 test.describe('Authentication Pages', () => {
   test('should load login page', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: /sign in|login/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /welcome back|sign in|login/i })).toBeVisible();
   });
 
   test('should load register page', async ({ page }) => {
@@ -72,6 +72,6 @@ test.describe('Protected Routes', () => {
 test.describe('404 Page', () => {
   test('should show 404 for unknown routes', async ({ page }) => {
     await page.goto('/this-page-does-not-exist-12345');
-    await expect(page.getByText(/404|not found/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: '404' })).toBeVisible();
   });
 });
