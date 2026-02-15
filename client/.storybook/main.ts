@@ -1,4 +1,4 @@
-import type { StorybookConfig } from '@storybook/nextjs';
+import type { StorybookConfig } from '@storybook/experimental-nextjs-vite';
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)'],
@@ -8,13 +8,10 @@ const config: StorybookConfig = {
     '@storybook/addon-a11y',
   ],
   framework: {
-    name: '@storybook/nextjs',
+    name: '@storybook/experimental-nextjs-vite',
     options: {},
   },
   staticDirs: ['../public'],
-  typescript: {
-    reactDocgen: 'react-docgen-typescript',
-  },
 };
 
 export default config;
