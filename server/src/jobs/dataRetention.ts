@@ -25,7 +25,7 @@ export async function processDataRetention() {
       },
     });
 
-    let totalDeleted = { scans: 0, findings: 0, assets: 0, auditLogs: 0 };
+    const totalDeleted = { scans: 0, findings: 0, assets: 0, auditLogs: 0 };
 
     for (const org of orgs) {
       const policy = org.dataRetentionPolicy || DEFAULT_RETENTION;

@@ -5,6 +5,7 @@ import prisma from '../config/database';
 
 // Extend Express Request to include user context
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: TokenPayload & { orgId: string };

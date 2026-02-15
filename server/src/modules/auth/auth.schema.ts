@@ -15,7 +15,7 @@ export const registerSchema = z.object({
     .min(VALIDATION.PASSWORD_MIN_LENGTH, `Password must be at least ${VALIDATION.PASSWORD_MIN_LENGTH} characters`)
     .max(VALIDATION.PASSWORD_MAX_LENGTH, `Password must be at most ${VALIDATION.PASSWORD_MAX_LENGTH} characters`)
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/,
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/,
       'Password must contain at least 1 uppercase, 1 lowercase, 1 number, and 1 special character',
     ),
   name: z
@@ -48,7 +48,7 @@ export const resetPasswordSchema = z.object({
     .min(VALIDATION.PASSWORD_MIN_LENGTH, `Password must be at least ${VALIDATION.PASSWORD_MIN_LENGTH} characters`)
     .max(VALIDATION.PASSWORD_MAX_LENGTH)
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/,
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/,
       'Password must contain at least 1 uppercase, 1 lowercase, 1 number, and 1 special character',
     ),
 });
