@@ -11,6 +11,7 @@ FROM base AS builder
 RUN npm ci
 COPY server/ ./
 COPY shared/ ../shared/
+RUN npx prisma generate
 RUN npm run build
 
 # Production

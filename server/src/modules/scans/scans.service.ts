@@ -286,8 +286,8 @@ export class ScansService {
     const prevSet = new Set(previousFindings.map(fingerprint));
     const currSet = new Set(currentFindings.map(fingerprint));
 
-    const newFindings = currentFindings.filter((f) => !prevSet.has(fingerprint(f)));
-    const fixedFindings = previousFindings.filter((f) => !currSet.has(fingerprint(f)));
+    const newFindings = currentFindings.filter((f: any) => !prevSet.has(fingerprint(f)));
+    const fixedFindings = previousFindings.filter((f: any) => !currSet.has(fingerprint(f)));
     const unchangedCount = currentFindings.length - newFindings.length;
 
     return {

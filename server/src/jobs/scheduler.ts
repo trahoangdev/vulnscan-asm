@@ -201,9 +201,9 @@ async function processWeeklyDigest() {
           }),
         ]);
 
-        const criticalOpen = openFindings.find((g) => g.severity === 'CRITICAL')?._count || 0;
-        const highOpen = openFindings.find((g) => g.severity === 'HIGH')?._count || 0;
-        const totalOpen = openFindings.reduce((acc, g) => acc + g._count, 0);
+        const criticalOpen = openFindings.find((g: any) => g.severity === 'CRITICAL')?._count || 0;
+        const highOpen = openFindings.find((g: any) => g.severity === 'HIGH')?._count || 0;
+        const totalOpen = openFindings.reduce((acc: number, g: any) => acc + g._count, 0);
 
         const stats = { newFindings, fixedFindings, criticalOpen, highOpen, totalOpen, scansRun, newAssets };
 
@@ -316,9 +316,9 @@ async function processScheduledReports() {
           }),
         ]);
 
-        const criticalCount = severityCounts.find((g) => g.severity === 'CRITICAL')?._count || 0;
-        const highCount = severityCounts.find((g) => g.severity === 'HIGH')?._count || 0;
-        const totalOpen = severityCounts.reduce((acc, g) => acc + g._count, 0);
+        const criticalCount = severityCounts.find((g: any) => g.severity === 'CRITICAL')?._count || 0;
+        const highCount = severityCounts.find((g: any) => g.severity === 'HIGH')?._count || 0;
+        const totalOpen = severityCounts.reduce((acc: number, g: any) => acc + g._count, 0);
 
         // Build simple HTML report
         const reportHtml = `

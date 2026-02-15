@@ -76,19 +76,19 @@ export class AdminService {
         totalScans,
         totalVulns,
       },
-      userGrowth: userGrowth.map((r) => ({
+      userGrowth: userGrowth.map((r: any) => ({
         date: r.date,
         count: Number(r.count),
       })),
-      scansByStatus: scansByStatus.map((s) => ({
+      scansByStatus: scansByStatus.map((s: any) => ({
         status: s.status,
         count: s._count,
       })),
-      vulnsBySeverity: vulnsBySeverity.map((v) => ({
+      vulnsBySeverity: vulnsBySeverity.map((v: any) => ({
         severity: v.severity,
         count: v._count,
       })),
-      recentScans: recentScans.map((s) => ({
+      recentScans: recentScans.map((s: any) => ({
         id: s.id,
         target: s.target.value,
         createdBy: s.createdBy.name,
@@ -96,7 +96,7 @@ export class AdminService {
         profile: s.profile,
         createdAt: s.createdAt,
       })),
-      topOrgs: topOrgs.map((o) => ({
+      topOrgs: topOrgs.map((o: any) => ({
         id: o.id,
         name: o.name,
         plan: o.plan,

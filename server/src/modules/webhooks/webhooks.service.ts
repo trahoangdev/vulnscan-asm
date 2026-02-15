@@ -113,7 +113,7 @@ export class WebhooksService {
     };
 
     const results = await Promise.allSettled(
-      webhooks.map((wh) => this.deliver(wh, payload)),
+      webhooks.map((wh: any) => this.deliver(wh, payload)),
     );
 
     return results.map((r, i) => ({

@@ -165,7 +165,7 @@ export class VulnerabilitiesService {
 
     if (format === 'CSV') {
       const headers = ['Title', 'Severity', 'CVSS', 'Category', 'OWASP', 'Status', 'Affected URL', 'Target', 'Description', 'Remediation'];
-      const rows = findings.map((f) => [
+      const rows = findings.map((f: any) => [
         `"${(f.title || '').replace(/"/g, '""')}"`,
         f.severity,
         f.cvssScore ?? '',
@@ -177,7 +177,7 @@ export class VulnerabilitiesService {
         `"${(f.description || '').replace(/"/g, '""')}"`,
         `"${(f.remediation || '').replace(/"/g, '""')}"`,
       ]);
-      const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const csv = [headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n');
       return { data: csv, format: 'CSV', count: findings.length };
     }
 

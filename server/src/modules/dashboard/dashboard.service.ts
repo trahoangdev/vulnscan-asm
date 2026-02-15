@@ -130,7 +130,7 @@ export const dashboardService = {
       },
       scans: {
         total: scansCount,
-        recent: recentScans.map((s) => ({
+        recent: recentScans.map((s: any) => ({
           id: s.id,
           target: s.target.value,
           targetType: s.target.type,
@@ -149,7 +149,7 @@ export const dashboardService = {
         total: totalVulns,
         bySeverity: severityMap,
         byStatus: statusMap,
-        byCategory: vulnsByCategory.map((c) => ({
+        byCategory: vulnsByCategory.map((c: any) => ({
           category: c.category,
           count: c._count,
         })),

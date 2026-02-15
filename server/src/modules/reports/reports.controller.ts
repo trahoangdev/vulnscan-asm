@@ -82,7 +82,7 @@ export class ReportsController {
         return ApiResponse.error(res, 404, 'NOT_FOUND', 'Scan not found');
       }
 
-      const sarifFindings = scan.findings.map((f) => ({
+      const sarifFindings = scan.findings.map((f: any) => ({
         id: f.id,
         title: f.title,
         severity: f.severity,

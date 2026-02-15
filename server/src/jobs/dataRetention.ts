@@ -72,7 +72,7 @@ export async function processDataRetention() {
               in: (await prisma.orgMember.findMany({
                 where: { orgId: org.id },
                 select: { userId: true },
-              })).map((m) => m.userId),
+              })).map((m: any) => m.userId),
             },
             createdAt: { lt: auditCutoff },
           },

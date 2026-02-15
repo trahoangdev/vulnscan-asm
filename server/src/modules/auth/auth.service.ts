@@ -44,7 +44,7 @@ export class AuthService {
     const emailVerifyToken = generateRandomToken();
 
     // Create user + organization in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Create organization
       const orgName = data.orgName || `${data.name}'s Organization`;
       const org = await tx.organization.create({
@@ -376,7 +376,7 @@ export class AuthService {
       twoFactorEnabled: user.twoFactorEnabled,
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
-      organizations: user.orgMemberships.map((m) => ({
+      organizations: user.orgMemberships.map((m: any) => ({
         ...m.organization,
         role: m.role,
       })),
@@ -681,7 +681,7 @@ export class AuthService {
         user = existingUser;
       } else {
         // Brand new user — create account + org
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx: any) => {
           const orgName = `${data.name}'s Organization`;
           const org = await tx.organization.create({
             data: { name: orgName, slug: generateSlug(orgName) },

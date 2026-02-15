@@ -44,7 +44,7 @@ export class UsersService {
 
     return {
       ...user,
-      organizations: user.orgMemberships.map((m) => ({
+      organizations: user.orgMemberships.map((m: any) => ({
         ...m.organization,
         role: m.role,
       })),
