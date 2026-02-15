@@ -327,6 +327,24 @@ export default function TargetDetailPage() {
                       </Button>
                     </div>
                   </div>
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-3 mt-2">
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-200">⚠ Using a wildcard CNAME (e.g. Vercel, Netlify)?</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                      Wildcard CNAME records can block subdomain TXT lookups. As an alternative, add the TXT record to your <strong>root domain</strong> instead:
+                    </p>
+                    <div className="flex items-center justify-between bg-background rounded p-2 border mt-1.5">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Alternative Host</p>
+                        <code className="text-xs font-mono">{verify.verificationMethods.dns.altHost || target.value}</code>
+                      </div>
+                      <Button
+                        variant="ghost" size="sm"
+                        onClick={() => handleCopy(verify.verificationMethods.dns.altHost || target.value, 'dns-alt-host')}
+                      >
+                        {copied === 'dns-alt-host' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
                   <p className="text-xs text-muted-foreground">Note: DNS changes may take up to 24 hours to propagate.</p>
                 </>
               )}

@@ -434,14 +434,25 @@ async function quickVerifyCheck(target: {
 
   const token = target.verificationToken;
 
-  // Try DNS TXT check
+  // Try DNS TXT check — subdomain first, then root domain fallback
   try {
     const dns = await import('dns').then((m) => m.promises);
+    // Standard: _vulnscan-verify.<domain>
     const records = await dns.resolveTxt(`_vulnscan-verify.${target.value}`);
     const flat = records.flat();
     if (flat.some((r) => r.includes(token))) return true;
   } catch {
-    // DNS check failed, try HTTP
+    // Subdomain DNS check failed (may be wildcard CNAME), try root domain
+  }
+
+  // Fallback: check root domain TXT records (handles wildcard CNAME conflicts)
+  try {
+    const dns = await import('dns').then((m) => m.promises);
+    const records = await dns.resolveTxt(target.value);
+    const flat = records.flat();
+    if (flat.some((r) => r.includes(token))) return true;
+  } catch {
+    // Root DNS check also failed, try HTTP
   }
 
   // Try HTTP file check

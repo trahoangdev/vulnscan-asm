@@ -108,6 +108,8 @@ export class TargetsService {
           type: 'TXT',
           host: `_vulnscan-verify.${data.value}`,
           value: verificationToken,
+          altHost: data.value,
+          altNote: 'If you have a wildcard CNAME record, add the TXT record to the root domain instead.',
         },
         html: {
           path: '/.well-known/vulnscan-verify.txt',
@@ -369,28 +371,64 @@ export class TargetsService {
 
   /**
    * Verify via DNS TXT record
-   * Checks _vulnscan-verify.<domain> for the verification token
+   * Strategy:
+   *   1. Check _vulnscan-verify.<domain> TXT records (standard)
+   *   2. Fallback: check root <domain> TXT records (handles wildcard CNAME conflicts)
+   *   3. Fallback: query Google DNS-over-HTTPS API as last resort
    */
   private async verifyDnsTxt(domain: string, token: string): Promise<boolean> {
+    // 1) Standard subdomain TXT lookup
+    if (await this.lookupTxtRecords(`_vulnscan-verify.${domain}`, token)) {
+      return true;
+    }
+
+    // 2) Fallback: root domain TXT lookup (handles wildcard CNAME overriding subdomain)
+    //    Many DNS providers (like Namecheap) have wildcard CNAME records that
+    //    intercept subdomain lookups. Checking root TXT as fallback.
+    if (await this.lookupTxtRecords(domain, token)) {
+      return true;
+    }
+
+    // 3) Fallback: Google DNS-over-HTTPS API (bypasses local resolver issues)
     try {
-      const hostname = `_vulnscan-verify.${domain}`;
+      const dohUrl = `https://dns.google/resolve?name=_vulnscan-verify.${domain}&type=TXT`;
+      const resp = await fetch(dohUrl, { signal: AbortSignal.timeout(5000) });
+      if (resp.ok) {
+        const data = await resp.json() as any;
+        const answers = data.Answer || [];
+        for (const ans of answers) {
+          // Type 16 = TXT
+          if (ans.type === 16) {
+            const value = (ans.data || '').replace(/^"|"$/g, '');
+            if (value === token) return true;
+          }
+        }
+      }
+    } catch {
+      // DOH query failed, continue
+    }
+
+    return false;
+  }
+
+  /**
+   * Helper: lookup TXT records for a hostname and match against token
+   */
+  private async lookupTxtRecords(hostname: string, token: string): Promise<boolean> {
+    try {
       const records = await dns.resolveTxt(hostname);
-      // records is an array of arrays, flatten and check
       for (const record of records) {
         const value = record.join('');
         if (value === token) {
           return true;
         }
       }
-      return false;
     } catch (error: any) {
-      // ENOTFOUND or ENODATA means the record doesn't exist
-      if (error.code === 'ENOTFOUND' || error.code === 'ENODATA') {
-        return false;
+      if (error.code !== 'ENOTFOUND' && error.code !== 'ENODATA') {
+        logger.error('DNS TXT lookup error', { error: error.message, hostname });
       }
-      logger.error('DNS TXT verification error', { error: error.message, domain });
-      return false;
     }
+    return false;
   }
 
   /**
@@ -493,6 +531,8 @@ export class TargetsService {
           type: 'TXT',
           host: `_vulnscan-verify.${target.value}`,
           value: target.verificationToken,
+          altHost: target.value,
+          altNote: 'If you have a wildcard CNAME record, add the TXT record to the root domain instead.',
         },
         html: {
           path: '/.well-known/vulnscan-verify.txt',
