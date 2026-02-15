@@ -77,11 +77,49 @@ export class TargetsService {
       );
     }
 
-    // Check duplicate
+    // Check duplicate — reactivate if soft-deleted
     const existing = await prisma.target.findUnique({
       where: { orgId_value: { orgId, value: data.value } },
     });
     if (existing) {
+      if (!existing.isActive) {
+        // Reactivate soft-deleted target with new verification token
+        const verificationToken = generateVerificationToken();
+        const target = await prisma.target.update({
+          where: { id: existing.id },
+          data: {
+            isActive: true,
+            type: data.type,
+            label: data.label,
+            notes: data.notes,
+            scanProfile: data.scanProfile,
+            tags: data.tags || [],
+            verificationStatus: 'PENDING',
+            verificationMethod: null,
+            verificationToken,
+            verifiedAt: null,
+          },
+        });
+        return {
+          ...target,
+          verificationMethods: {
+            dns: {
+              type: 'TXT',
+              host: `_vulnscan-verify.${data.value}`,
+              value: verificationToken,
+              altHost: data.value,
+              altNote: 'If you have a wildcard CNAME record, add the TXT record to the root domain instead.',
+            },
+            html: {
+              path: '/.well-known/vulnscan-verify.txt',
+              content: verificationToken,
+            },
+            meta: {
+              tag: `<meta name="vulnscan-verify" content="${verificationToken}">`,
+            },
+          },
+        };
+      }
       throw ApiError.conflict('Target already exists');
     }
 
@@ -261,7 +299,7 @@ export class TargetsService {
   }
 
   /**
-   * Delete target (soft delete)
+   * Delete target (hard delete — cascades to related scans, assets, findings)
    */
   async delete(orgId: string, targetId: string) {
     const target = await prisma.target.findFirst({
@@ -272,10 +310,12 @@ export class TargetsService {
       throw ApiError.notFound('Target not found');
     }
 
-    await prisma.target.update({
-      where: { id: targetId },
-      data: { isActive: false },
-    });
+    await prisma.$transaction([
+      prisma.finding.deleteMany({ where: { scan: { targetId } } }),
+      prisma.asset.deleteMany({ where: { targetId } }),
+      prisma.scan.deleteMany({ where: { targetId } }),
+      prisma.target.delete({ where: { id: targetId } }),
+    ]);
 
     return { message: 'Target deleted successfully' };
   }

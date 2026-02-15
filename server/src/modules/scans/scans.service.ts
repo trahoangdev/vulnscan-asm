@@ -176,6 +176,31 @@ export class ScansService {
   }
 
   /**
+   * Delete a scan and all related findings/results (cascade)
+   */
+  async delete(orgId: string, scanId: string) {
+    const scan = await prisma.scan.findFirst({
+      where: {
+        id: scanId,
+        target: { orgId },
+      },
+    });
+
+    if (!scan) {
+      throw ApiError.notFound('Scan not found');
+    }
+
+    if (scan.status === 'RUNNING') {
+      throw ApiError.badRequest('Cannot delete a running scan. Cancel it first.');
+    }
+
+    // findings & scanResults cascade via onDelete: Cascade in schema
+    await prisma.scan.delete({ where: { id: scanId } });
+
+    return { message: 'Scan deleted successfully' };
+  }
+
+  /**
    * Get scan findings
    */
   async getFindings(orgId: string, scanId: string, query: Record<string, any>) {

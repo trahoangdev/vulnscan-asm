@@ -56,6 +56,9 @@ export const scansApi = {
 
   diff: (id: string) =>
     apiClient.get(`/scans/${id}/diff`),
+
+  delete: (id: string) =>
+    apiClient.delete(`/scans/${id}`),
 };
 
 export const vulnerabilitiesApi = {

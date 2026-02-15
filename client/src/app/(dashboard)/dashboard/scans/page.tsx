@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Plus,
   X,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -103,6 +104,7 @@ export default function ScansPage() {
   const [scanForm, setScanForm] = useState<ScanFormState>({ ...defaultForm });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newExclude, setNewExclude] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: scansData, isLoading } = useQuery({
     queryKey: ['scans', search],
@@ -126,6 +128,18 @@ export default function ScansPage() {
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error?.message || 'Failed to start scan');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => scansApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
+      setDeleteId(null);
+      toast.success('Scan deleted');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || 'Failed to delete scan');
     },
   });
 
@@ -471,6 +485,19 @@ export default function ScansPage() {
                       {scan.progress != null && scan.status === 'RUNNING' && (
                         <span className="text-sm font-medium">{scan.progress}%</span>
                       )}
+                      {scan.status !== 'RUNNING' && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDeleteId(scan.id);
+                          }}
+                          className="p-1.5 rounded-md hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                          title="Delete scan"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </CardContent>
@@ -480,6 +507,35 @@ export default function ScansPage() {
           })}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Scan</DialogTitle>
+            <DialogDescription>
+              This will permanently delete this scan and all its findings and results. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

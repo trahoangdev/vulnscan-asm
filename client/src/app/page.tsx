@@ -35,7 +35,12 @@ import {
   Layers,
   Cpu,
   Network,
+  User,
+  LayoutDashboard,
+  LogOut,
 } from 'lucide-react';
+import { useAuthStore } from '@/stores/auth';
+import { useRouter } from 'next/navigation';
 
 /* ═══════════════════════════════════════════
    UTILITY HOOKS
@@ -211,9 +216,30 @@ function AnimatedCounter({ target, suffix = '' }: { target: number; suffix?: str
 function Navigation() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { scrollY } = useScroll();
+  const router = useRouter();
+  const { isAuthenticated, user, logout } = useAuthStore();
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 50));
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    setUserMenuOpen(false);
+    router.push('/');
+  };
 
   const links = [
     { label: 'Features', href: '#features' },
@@ -258,20 +284,70 @@ function Navigation() {
               </Link>
             ))}
             <div className="w-px h-6 bg-white/10 mx-2" />
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm text-slate-300 hover:text-white transition-colors"
-            >
-              Sign in
-            </Link>
-            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <Link
-                href="/register"
-                className="ml-1 px-5 py-2.5 text-sm font-medium bg-blue-600 hover:bg-blue-500 rounded-xl transition-all duration-300 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40"
-              >
-                Start Free
-              </Link>
-            </motion.div>
+            {isAuthenticated ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/5 transition-all duration-300"
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-medium">
+                    {user?.name?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
+                  </div>
+                  <span className="text-sm text-slate-300 max-w-[120px] truncate">{user?.name || 'User'}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-56 bg-slate-900 border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
+                    >
+                      <div className="px-4 py-3 border-b border-white/5">
+                        <p className="text-sm font-medium text-white truncate">{user?.name}</p>
+                        <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                      </div>
+                      <div className="py-1">
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                        >
+                          <LayoutDashboard className="h-4 w-4" />
+                          Dashboard
+                        </Link>
+                        <button
+                          onClick={handleLogout}
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Logout
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="px-4 py-2 text-sm text-slate-300 hover:text-white transition-colors"
+                >
+                  Sign in
+                </Link>
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <Link
+                    href="/register"
+                    className="ml-1 px-5 py-2.5 text-sm font-medium bg-blue-600 hover:bg-blue-500 rounded-xl transition-all duration-300 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40"
+                  >
+                    Start Free
+                  </Link>
+                </motion.div>
+              </>
+            )}
           </nav>
 
           <button className="md:hidden p-2" onClick={() => setMobileOpen(!mobileOpen)}>
@@ -301,16 +377,38 @@ function Navigation() {
                 </Link>
               ))}
               <div className="h-px w-24 bg-white/10" />
-              <Link href="/login" onClick={() => setMobileOpen(false)} className="text-xl text-slate-400">
-                Sign in
-              </Link>
-              <Link
-                href="/register"
-                onClick={() => setMobileOpen(false)}
-                className="px-8 py-3 bg-blue-600 rounded-xl text-lg font-medium"
-              >
-                Start Free
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 text-xl text-slate-300 hover:text-white"
+                  >
+                    <LayoutDashboard className="h-5 w-5" />
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={() => { handleLogout(); setMobileOpen(false); }}
+                    className="flex items-center gap-2 text-xl text-red-400"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setMobileOpen(false)} className="text-xl text-slate-400">
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setMobileOpen(false)}
+                    className="px-8 py-3 bg-blue-600 rounded-xl text-lg font-medium"
+                  >
+                    Start Free
+                  </Link>
+                </>
+              )}
             </nav>
           </motion.div>
         )}

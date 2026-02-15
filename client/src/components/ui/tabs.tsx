@@ -99,10 +99,12 @@ function TabsContent({
   value,
   children,
   activeTab,
+  onTabChange: _,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
   value: string;
   activeTab?: string;
+  onTabChange?: (value: string) => void;
 }) {
   if (activeTab !== value) return null;
   return (

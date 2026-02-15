@@ -72,6 +72,15 @@ export class ScansController {
       next(error);
     }
   }
+
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await scansService.delete(req.user!.orgId, req.params.id);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const scansController = new ScansController();
