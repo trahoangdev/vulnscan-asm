@@ -49,11 +49,11 @@ By participating in this project, you agree to maintain a respectful, inclusive,
 
 ```bash
 # 1. Fork & clone
-git clone https://github.com/<your-username>/vulnscan-asm.git
+git clone https://github.com/trahoangdev/vulnscan-asm.git
 cd vulnscan-asm
 
 # 2. Add upstream remote
-git remote add upstream https://github.com/original-owner/vulnscan-asm.git
+git remote add upstream https://github.com/trahoangdev/vulnscan-asm.git
 
 # 3. Copy environment variables
 cp .env.example .env
@@ -379,7 +379,7 @@ Closes #<issue-number>
 
 ## 🐛 Bug Reports
 
-Open a [GitHub Issue](https://github.com/your-username/vulnscan-asm/issues/new) with:
+Open a [GitHub Issue](https://github.com/trahoangdev/vulnscan-asm/issues/new) with:
 
 ### Required Information
 
@@ -416,7 +416,7 @@ Error: Maximum update depth exceeded...
 
 ## 💡 Feature Requests
 
-Open a [GitHub Issue](https://github.com/your-username/vulnscan-asm/issues/new) with label `enhancement`:
+Open a [GitHub Issue](https://github.com/trahoangdev/vulnscan-asm/issues/new) with label `enhancement`:
 
 - **Problem:** What problem does this solve?
 - **Proposed solution:** How should it work?
@@ -543,8 +543,8 @@ See [docs/08-security-legal.md](docs/08-security-legal.md) for our full security
 
 ## ❓ Questions?
 
-- Open a [GitHub Discussion](https://github.com/your-username/vulnscan-asm/discussions) for general questions
-- Check existing [issues](https://github.com/your-username/vulnscan-asm/issues) before creating a new one
+- Open a [GitHub Discussion](https://github.com/trahoangdev/vulnscan-asm/discussions) for general questions
+- Check existing [issues](https://github.com/trahoangdev/vulnscan-asm/issues) before creating a new one
 - Read the [documentation](docs/) for architecture and API details
 
 ---

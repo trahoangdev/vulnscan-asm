@@ -6,7 +6,7 @@
 
 Nền tảng quản lý bề mặt tấn công và quét lỗ hổng bảo mật toàn diện, giúp doanh nghiệp SME chủ động phát hiện và khắc phục rủi ro an ninh mạng.
 
-[![CI](https://github.com/your-username/vulnscan-asm/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/vulnscan-asm/actions/workflows/ci.yml)
+[![CI](https://github.com/trahoangdev/vulnscan-asm/actions/workflows/ci.yml/badge.svg)](https://github.com/trahoangdev/vulnscan-asm/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
@@ -136,7 +136,7 @@ vulnscan-asm/
 ### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/your-username/vulnscan-asm.git
+git clone https://github.com/trahoangdev/vulnscan-asm.git
 cd vulnscan-asm
 cp .env.example .env
 # Edit .env with your configuration

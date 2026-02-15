@@ -13,11 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY scanner/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy scanner code
-COPY scanner/ ./
+# Copy scanner code (preserve package structure)
+COPY scanner/ ./scanner/
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash scanner
 USER scanner
 
-CMD ["celery", "-A", "tasks", "worker", "--loglevel=info", "--concurrency=3"]
+CMD ["python", "-m", "scanner.main", "redis-worker"]

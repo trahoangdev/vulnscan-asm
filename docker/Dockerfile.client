@@ -8,6 +8,10 @@ RUN npm ci
 
 # Build
 FROM base AS builder
+
+ARG NEXT_PUBLIC_API_URL=/v1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 COPY client/ ./
 COPY shared/ ../shared/
 RUN npm run build

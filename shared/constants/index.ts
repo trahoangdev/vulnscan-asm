@@ -39,6 +39,11 @@ export const SCAN_PROFILES = {
       'subdomain_takeover',
       'admin_detector',
       'nvd_cve_matcher',
+      'waf_detector',
+      'recon_module',
+      'default_creds_checker',
+      'api_discovery',
+      'api_security',
     ],
   },
 } as const;
@@ -54,6 +59,11 @@ export const SCANNER_MODULES = [
   { id: 'subdomain_takeover', name: 'Subdomain Takeover', description: 'Dangling CNAME & unclaimed service detection' },
   { id: 'admin_detector', name: 'Admin Panel Detector', description: 'Exposed admin interfaces & login pages' },
   { id: 'nvd_cve_matcher', name: 'NVD CVE Matcher', description: 'Known CVE lookup via NVD API' },
+  { id: 'waf_detector', name: 'WAF Detector', description: 'Web Application Firewall detection & fingerprinting' },
+  { id: 'recon_module', name: 'Recon Module', description: 'OSINT reconnaissance & information gathering' },
+  { id: 'default_creds_checker', name: 'Default Credentials', description: 'Default & common credential testing' },
+  { id: 'api_discovery', name: 'API Discovery', description: 'REST/GraphQL API endpoint enumeration' },
+  { id: 'api_security', name: 'API Security', description: 'API authentication & authorization testing' },
 ] as const;
 
 // ========================

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ========================
   # PostgreSQL Database
@@ -56,7 +54,7 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -87,7 +85,8 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://vulnscan:vulnscan_password@postgres:5432/vulnscan_db
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: change-me-in-production
+      JWT_ACCESS_SECRET: change-me-in-production
+      JWT_REFRESH_SECRET: change-me-refresh-in-production
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       S3_ENDPOINT: http://minio:9000

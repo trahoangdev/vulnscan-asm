@@ -1,0 +1,48 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies (rebuilt in Docker)
+node_modules
+client/node_modules
+server/node_modules
+scanner/__pycache__
+scanner/**/__pycache__
+**/__pycache__
+*.pyc
+
+# Build outputs
+client/.next
+client/out
+server/dist
+*.tsbuildinfo
+
+# IDE / Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+server/.env
+client/.env.local
+
+# Testing / CI
+coverage
+.nyc_output
+.playwright
+test-results
+playwright-report
+client/storybook-static
+
+# Documentation & misc
+docs
+*.md
+!README.md
+LICENSE
+CONTRIBUTING.md
+.editorconfig
+.github
