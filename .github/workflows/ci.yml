@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+
 jobs:
   # ========================
   # Lint & Type Check
@@ -19,11 +27,27 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache server node_modules
+        uses: actions/cache@v4
+        with:
+          path: server/node_modules
+          key: server-node-${{ runner.os }}-${{ hashFiles('server/package-lock.json') }}
+          restore-keys: server-node-${{ runner.os }}-
+
+      - name: Cache client node_modules
+        uses: actions/cache@v4
+        with:
+          path: client/node_modules
+          key: client-node-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}
+          restore-keys: client-node-${{ runner.os }}-
 
       - name: Install server dependencies
         run: cd server && npm ci
+
+      - name: Generate Prisma client
+        run: cd server && npx prisma generate
 
       - name: Install client dependencies
         run: cd client && npm ci
@@ -76,19 +100,42 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache server node_modules
+        uses: actions/cache@v4
+        with:
+          path: server/node_modules
+          key: server-node-${{ runner.os }}-${{ hashFiles('server/package-lock.json') }}
+          restore-keys: server-node-${{ runner.os }}-
 
       - name: Install dependencies
         run: cd server && npm ci
 
-      - name: Run tests
-        run: cd server && npm test
+      - name: Generate Prisma client
+        run: cd server && npx prisma generate
+
+      - name: Run database migrations
+        run: cd server && npx prisma migrate deploy
         env:
           DATABASE_URL: postgresql://vulnscan:test_password@localhost:5432/vulnscan_test
+
+      - name: Run tests
+        run: cd server && npm test -- --verbose --forceExit
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://vulnscan:test_password@localhost:5432/vulnscan_test
           REDIS_URL: redis://localhost:6379
-          JWT_ACCESS_SECRET: test-secret
-          JWT_REFRESH_SECRET: test-refresh-secret
+          JWT_ACCESS_SECRET: ci-test-access-secret-key-32chars
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-key-32chars
+          POLAR_ACCESS_TOKEN: test_polar_token
+          POLAR_WEBHOOK_SECRET: test_polar_webhook_secret
+          S3_ENDPOINT: http://localhost:9000
+          S3_ACCESS_KEY: minioadmin
+          S3_SECRET_KEY: minioadmin
+          S3_BUCKET: vulnscan-test
+          SMTP_HOST: localhost
+          SMTP_PORT: '1025'
 
   # ========================
   # Scanner Tests
@@ -103,35 +150,234 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('scanner/requirements.txt') }}
+          restore-keys: pip-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
           cd scanner
           pip install -r requirements.txt
-          pip install pytest pytest-cov
+          pip install pytest pytest-cov pytest-asyncio
 
       - name: Run tests
-        run: cd scanner && pytest --cov=. --cov-report=xml
+        run: |
+          cd scanner
+          pytest tests/ -v --cov=scanner --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scanner-coverage
+          path: scanner/coverage.xml
 
   # ========================
-  # Build Check
+  # Build Server
   # ========================
-  build:
-    name: Build Check
+  build-server:
+    name: Build Server
     runs-on: ubuntu-latest
-    needs: [test-server, test-scanner]
+    needs: test-server
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache server node_modules
+        uses: actions/cache@v4
+        with:
+          path: server/node_modules
+          key: server-node-${{ runner.os }}-${{ hashFiles('server/package-lock.json') }}
+          restore-keys: server-node-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd server && npm ci
+
+      - name: Generate Prisma client
+        run: cd server && npx prisma generate
 
       - name: Build server
-        run: cd server && npm ci && npm run build
+        run: cd server && npm run build
+
+  # ========================
+  # Build Client
+  # ========================
+  build-client:
+    name: Build Client
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache client node_modules
+        uses: actions/cache@v4
+        with:
+          path: client/node_modules
+          key: client-node-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}
+          restore-keys: client-node-${{ runner.os }}-
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: client/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}-${{ hashFiles('client/src/**/*') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}-
+            nextjs-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd client && npm ci
 
       - name: Build client
-        run: cd client && npm ci && npm run build
+        run: cd client && npm run build
+
+  # ========================
+  # Storybook Build
+  # ========================
+  storybook:
+    name: Storybook Build
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache client node_modules
+        uses: actions/cache@v4
+        with:
+          path: client/node_modules
+          key: client-node-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}
+          restore-keys: client-node-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd client && npm ci
+
+      - name: Build Storybook
+        run: cd client && npm run build-storybook
+
+      - name: Upload Storybook artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook
+          path: client/storybook-static
+          retention-days: 7
+
+  # ========================
+  # Playwright E2E Tests
+  # ========================
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: [build-client, build-server]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache client node_modules
+        uses: actions/cache@v4
+        with:
+          path: client/node_modules
+          key: client-node-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}
+          restore-keys: client-node-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd client && npm ci
+
+      - name: Install Playwright browsers
+        run: cd client && npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: cd client && npx playwright test --project=chromium
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: client/playwright-report
+          retention-days: 7
+
+  # ========================
+  # Docker Build (validate only)
+  # ========================
+  docker:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    needs: [build-server, build-client, test-scanner]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service: [server, client, scanner]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.${{ matrix.service }}
+          push: false
+          tags: vulnscan-asm/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ========================
+  # Security Audit
+  # ========================
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Audit server dependencies
+        run: cd server && npm audit --audit-level=high || true
+        continue-on-error: true
+
+      - name: Audit client dependencies
+        run: cd client && npm audit --audit-level=high || true
+        continue-on-error: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Audit Python dependencies
+        run: |
+          pip install pip-audit
+          cd scanner && pip-audit -r requirements.txt || true
+        continue-on-error: true

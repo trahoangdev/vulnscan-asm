@@ -429,6 +429,6 @@ Merge to main:
 | **Error Tracking** | Sentry | Error monitoring | Free: 5K events/mo |
 | **Analytics** | PostHog (self-hosted) | Product analytics | Free |
 | **Auth (backup)** | — | JWT self-managed | — |
-| **Payments** | Stripe | Subscription billing | 2.9% + $0.30 |
+| **Payments** | Polar.sh | Subscription billing (MoR) | 4% + $0.40 |
 | **CDN** | Cloudflare | DNS, CDN, DDoS protection | Free plan |
 | **Vulnerability DB** | NVD / CVE | Known vulnerabilities | Free API |

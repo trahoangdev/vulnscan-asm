@@ -1,0 +1,658 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================
+// USER & AUTHENTICATION
+// =============================================
+
+enum SystemRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id               String     @id @default(cuid())
+  email            String     @unique
+  passwordHash     String?    @map("password_hash")
+  name             String
+  avatar           String?
+  systemRole       SystemRole @default(USER) @map("system_role")
+  emailVerified    Boolean    @default(false) @map("email_verified")
+  emailVerifyToken String?    @map("email_verify_token")
+  resetToken       String?    @map("reset_token")
+  resetTokenExp    DateTime?  @map("reset_token_exp")
+  twoFactorEnabled Boolean    @default(false) @map("two_factor_enabled")
+  twoFactorSecret  String?    @map("two_factor_secret")
+  notifyPrefs      Json?      @map("notify_prefs") // {emailCritical, emailWeekly, inApp, slack}
+  timezone         String     @default("UTC")
+  lastLoginAt      DateTime?  @map("last_login_at")
+  lastLoginIp      String?    @map("last_login_ip")
+  isActive         Boolean    @default(true) @map("is_active")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  orgMemberships OrgMember[]
+  apiKeys        ApiKey[]
+  scansCreated   Scan[]         @relation("ScanCreator")
+  notifications  Notification[]
+  oauthAccounts  OAuthAccount[]
+  auditLogs      AuditLog[]
+  scheduledReports ScheduledReport[] @relation("ScheduledReportCreator")
+  alertRules   AlertRule[]     @relation("AlertRuleCreator")
+
+  @@map("users")
+}
+
+model OAuthAccount {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  provider    String   // "google", "github"
+  providerId  String   @map("provider_id")
+  accessToken String?  @map("access_token")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  orgId       String    @map("org_id")
+  name        String
+  keyHash     String    @unique @map("key_hash")
+  keyPrefix   String    @map("key_prefix")
+  permissions String[]  @default(["read"])
+  lastUsedAt  DateTime? @map("last_used_at")
+  expiresAt   DateTime? @map("expires_at")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+// =============================================
+// ORGANIZATION & TEAM
+// =============================================
+
+model Organization {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  logo             String?
+  plan             Plan     @default(STARTER)
+  maxTargets       Int      @default(1) @map("max_targets")
+  maxScansPerMonth Int      @default(10) @map("max_scans_per_month")
+  scansUsed        Int      @default(0) @map("scans_used")
+  billingEmail     String?  @map("billing_email")
+  polarCustomerId  String?  @map("polar_customer_id")
+  polarSubId       String?  @map("polar_sub_id")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members  OrgMember[]
+  targets  Target[]
+  apiKeys  ApiKey[]
+  reports  Report[]
+  webhooks Webhook[]
+  scheduledReports ScheduledReport[]
+  dataRetentionPolicy DataRetentionPolicy?
+  alertRules   AlertRule[]
+
+  @@map("organizations")
+}
+
+model OrgMember {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  orgId     String   @map("org_id")
+  role      OrgRole  @default(MEMBER)
+  invitedBy String?  @map("invited_by")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@map("org_members")
+}
+
+enum Plan {
+  STARTER
+  PROFESSIONAL
+  BUSINESS
+  ENTERPRISE
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// =============================================
+// TARGETS & DOMAIN VERIFICATION
+// =============================================
+
+model Target {
+  id                 String              @id @default(cuid())
+  orgId              String              @map("org_id")
+  type               TargetType          @default(DOMAIN)
+  value              String
+  label              String?
+  notes              String?
+  verificationStatus VerificationStatus  @default(PENDING) @map("verification_status")
+  verificationToken  String?             @map("verification_token")
+  verificationMethod VerificationMethod? @map("verification_method")
+  verifiedAt         DateTime?           @map("verified_at")
+  lastScanAt         DateTime?           @map("last_scan_at")
+  nextScanAt         DateTime?           @map("next_scan_at")
+  scanSchedule       String?             @map("scan_schedule")
+  scanProfile        ScanProfile         @default(STANDARD) @map("scan_profile")
+  securityScore      Int?                @map("security_score")
+  tags               String[]            @default([])
+  isActive           Boolean             @default(true) @map("is_active")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  scans        Scan[]
+  assets       Asset[]
+
+  @@unique([orgId, value])
+  @@map("targets")
+}
+
+enum TargetType {
+  DOMAIN
+  IP
+  CIDR
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  EXPIRED
+}
+
+enum VerificationMethod {
+  DNS_TXT
+  HTML_FILE
+  META_TAG
+}
+
+enum ScanProfile {
+  QUICK
+  STANDARD
+  DEEP
+  CUSTOM
+}
+
+// =============================================
+// SCANS
+// =============================================
+
+model Scan {
+  id            String      @id @default(cuid())
+  targetId      String      @map("target_id")
+  createdById   String      @map("created_by_id")
+  type          ScanType    @default(ON_DEMAND)
+  profile       ScanProfile @default(STANDARD)
+  status        ScanStatus  @default(QUEUED)
+  modules       String[]    @default([])
+  progress      Int         @default(0)
+  startedAt     DateTime?   @map("started_at")
+  completedAt   DateTime?   @map("completed_at")
+  duration      Int?
+  errorMessage  String?     @map("error_message")
+  totalAssets   Int?        @map("total_assets")
+  newAssets     Int?        @map("new_assets")
+  totalVulns    Int?        @map("total_vulns")
+  criticalCount Int?        @default(0) @map("critical_count")
+  highCount     Int?        @default(0) @map("high_count")
+  mediumCount   Int?        @default(0) @map("medium_count")
+  lowCount      Int?        @default(0) @map("low_count")
+  infoCount     Int?        @default(0) @map("info_count")
+  scanConfig    Json?       @map("scan_config")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  target      Target        @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  createdBy   User          @relation("ScanCreator", fields: [createdById], references: [id])
+  findings    VulnFinding[]
+  scanResults ScanResult[]
+
+  @@index([targetId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("scans")
+}
+
+enum ScanType {
+  ON_DEMAND
+  SCHEDULED
+  CONTINUOUS
+}
+
+enum ScanStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// =============================================
+// ASSETS (DISCOVERED)
+// =============================================
+
+model Asset {
+  id           String    @id @default(cuid())
+  targetId     String    @map("target_id")
+  type         AssetType
+  value        String
+  ip           String?
+  ports        Json?
+  technologies Json?
+  httpStatus   Int?      @map("http_status")
+  title        String?
+  headers      Json?
+  dnsRecords   Json?     @map("dns_records")
+  whois        Json?
+  sslInfo      Json?     @map("ssl_info")
+  firstSeenAt  DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt   DateTime  @default(now()) @map("last_seen_at")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  target   Target        @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  findings VulnFinding[]
+
+  @@unique([targetId, type, value])
+  @@index([targetId])
+  @@map("assets")
+}
+
+enum AssetType {
+  SUBDOMAIN
+  IP_ADDRESS
+  URL
+  API_ENDPOINT
+}
+
+// =============================================
+// VULNERABILITY FINDINGS
+// =============================================
+
+model VulnFinding {
+  id             String        @id @default(cuid())
+  scanId         String        @map("scan_id")
+  assetId        String?       @map("asset_id")
+  title          String
+  description    String
+  severity       Severity
+  cvssScore      Float?        @map("cvss_score")
+  cvssVector     String?       @map("cvss_vector")
+  category       VulnCategory
+  owaspCategory  String?       @map("owasp_category")
+  cveId          String?       @map("cve_id")
+  cweId          String?       @map("cwe_id")
+  affectedUrl    String?       @map("affected_url")
+  affectedParam  String?       @map("affected_param")
+  evidence       Json?
+  reproduction   String?
+  remediation    String?
+  references     String[]      @default([])
+  status         FindingStatus @default(OPEN)
+  assignedTo     String?       @map("assigned_to")
+  resolvedAt     DateTime?     @map("resolved_at")
+  falsePositive  Boolean       @default(false) @map("false_positive")
+  firstFoundAt   DateTime      @default(now()) @map("first_found_at")
+  lastFoundAt    DateTime      @default(now()) @map("last_found_at")
+  occurrences    Int           @default(1)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  scan  Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  asset Asset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([scanId])
+  @@index([severity])
+  @@index([status])
+  @@index([category])
+  @@map("vuln_findings")
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum VulnCategory {
+  SQL_INJECTION
+  XSS_REFLECTED
+  XSS_STORED
+  SSRF
+  LFI
+  RFI
+  COMMAND_INJECTION
+  PATH_TRAVERSAL
+  OPEN_REDIRECT
+  CSRF
+  IDOR
+  CORS_MISCONFIG
+  SECURITY_HEADERS
+  SSL_TLS
+  CERT_ISSUE
+  INFO_DISCLOSURE
+  DIRECTORY_LISTING
+  SENSITIVE_FILE
+  OUTDATED_SOFTWARE
+  DEFAULT_CREDENTIALS
+  EMAIL_SECURITY
+  COOKIE_SECURITY
+  HTTP_METHODS
+  OTHER
+}
+
+enum FindingStatus {
+  OPEN
+  IN_PROGRESS
+  FIXED
+  ACCEPTED
+  FALSE_POSITIVE
+}
+
+// =============================================
+// SCAN RESULTS (RAW MODULE OUTPUT)
+// =============================================
+
+model ScanResult {
+  id          String    @id @default(cuid())
+  scanId      String    @map("scan_id")
+  module      String
+  status      String
+  rawOutput   Json      @map("raw_output")
+  duration    Int?
+  startedAt   DateTime  @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  errorMsg    String?   @map("error_msg")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  scan Scan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+  @@map("scan_results")
+}
+
+// =============================================
+// REPORTS
+// =============================================
+
+model Report {
+  id          String       @id @default(cuid())
+  orgId       String       @map("org_id")
+  type        ReportType
+  title       String
+  format      ReportFormat @default(PDF)
+  status      String       @default("generating")
+  fileUrl     String?      @map("file_url")
+  fileSize    Int?         @map("file_size")
+  parameters  Json?
+  generatedAt DateTime?    @map("generated_at")
+  expiresAt   DateTime?    @map("expires_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("reports")
+}
+
+// =============================================
+// WEBHOOKS
+// =============================================
+
+model Webhook {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  name      String
+  url       String
+  secret    String?
+  events    String[] @default([])
+  headers   Json?
+  isActive  Boolean  @default(true) @map("is_active")
+  lastError String?  @map("last_error")
+  lastTriggeredAt DateTime? @map("last_triggered_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("webhooks")
+}
+
+enum ReportType {
+  EXECUTIVE_SUMMARY
+  TECHNICAL_DETAIL
+  COMPLIANCE_OWASP
+  COMPLIANCE_PCI
+  ASSET_INVENTORY
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  HTML
+  CSV
+  JSON
+}
+
+// =============================================
+// NOTIFICATIONS
+// =============================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  channel   String           @default("in_app")
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SCAN_COMPLETED
+  SCAN_FAILED
+  CRITICAL_VULN_FOUND
+  HIGH_VULN_FOUND
+  NEW_ASSET_DISCOVERED
+  CERT_EXPIRING
+  DOMAIN_VERIFY_REMINDER
+  WEEKLY_DIGEST
+  SYSTEM
+}
+
+// =============================================
+// ADMIN — AUDIT LOGS
+// =============================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String   // e.g. "user.deactivate", "org.delete", "settings.update"
+  entity     String   // e.g. "user", "organization", "setting"
+  entityId   String?  @map("entity_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// =============================================
+// ADMIN — SYSTEM SETTINGS
+// =============================================
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  category  String   @default("general") // general, security, email, scanner
+  label     String?
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([category])
+  @@map("system_settings")
+}
+
+// =============================================
+// SCHEDULED REPORTS
+// =============================================
+
+model ScheduledReport {
+  id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
+  createdById String   @map("created_by_id")
+  name        String
+  frequency   ReportFrequency @default(WEEKLY)
+  format      String   @default("html") // html, pdf, json
+  recipients  Json     @default("[]")   // array of email addresses
+  filters     Json?                     // optional filters (severity, target, etc.)
+  isActive    Boolean  @default(true)   @map("is_active")
+  lastRunAt   DateTime? @map("last_run_at")
+  nextRunAt   DateTime  @map("next_run_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ScheduledReportCreator", fields: [createdById], references: [id])
+
+  @@index([orgId, isActive])
+  @@index([nextRunAt])
+  @@map("scheduled_reports")
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// =============================================
+// DATA RETENTION POLICY
+// =============================================
+
+model DataRetentionPolicy {
+  id              String   @id @default(cuid())
+  orgId           String   @unique @map("org_id")
+  scanRetentionDays    Int @default(365) @map("scan_retention_days")
+  findingRetentionDays Int @default(730) @map("finding_retention_days")
+  assetRetentionDays   Int @default(365) @map("asset_retention_days")
+  auditLogRetentionDays Int @default(90) @map("audit_log_retention_days")
+  lastCleanupAt   DateTime? @map("last_cleanup_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("data_retention_policies")
+}
+
+// =============================================
+// ALERT RULES
+// =============================================
+
+model AlertRule {
+  id             String           @id @default(cuid())
+  orgId          String           @map("org_id")
+  createdById    String           @map("created_by_id")
+  name           String
+  description    String?
+  isActive       Boolean          @default(true) @map("is_active")
+
+  // Conditions
+  eventType      AlertEventType   @map("event_type")
+  severityFilter Severity[]       @default([CRITICAL, HIGH]) @map("severity_filter")
+  targetFilter   String[]         @default([]) @map("target_filter")  // target IDs, empty = all
+  categoryFilter String[]         @default([]) @map("category_filter") // VulnCategory values
+  threshold      Int              @default(1) // trigger when count >= threshold
+  timeWindowMins Int              @default(60) @map("time_window_mins") // within X minutes
+
+  // Actions
+  channels       String[]         @default(["in_app"]) // in_app, email, webhook, slack
+  webhookUrl     String?          @map("webhook_url")
+  emailRecipients Json?           @map("email_recipients") // array of emails
+  slackChannel   String?          @map("slack_channel")
+
+  // Tracking
+  lastTriggeredAt DateTime?       @map("last_triggered_at")
+  triggerCount    Int              @default(0) @map("trigger_count")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("AlertRuleCreator", fields: [createdById], references: [id])
+
+  @@index([orgId, isActive])
+  @@index([eventType])
+  @@map("alert_rules")
+}
+
+enum AlertEventType {
+  NEW_VULNERABILITY
+  SCAN_COMPLETED
+  SCAN_FAILED
+  CERT_EXPIRING
+  NEW_ASSET_DISCOVERED
+  SEVERITY_THRESHOLD
+}
