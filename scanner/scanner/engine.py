@@ -36,6 +36,8 @@ SCAN_PROFILES: dict[str, list[str]] = {
         "subdomain_takeover",
         "admin_detector",
         "nvd_cve_matcher",
+        "api_discovery",
+        "api_security",
     ],
 }
 
@@ -222,7 +224,7 @@ class ScanEngine:
         }
 
     def _generate_summary(self, findings: list[dict[str, Any]]) -> dict[str, Any]:
-        """Generate a summary of findings by severity."""
+        """Generate a summary with CVSS-based risk scoring."""
         severity_counts = {
             "CRITICAL": 0,
             "HIGH": 0,
@@ -235,16 +237,98 @@ class ScanEngine:
             severity_counts[sev] = severity_counts.get(sev, 0) + 1
 
         total = len(findings)
-        risk_score = (
-            severity_counts["CRITICAL"] * 40
-            + severity_counts["HIGH"] * 20
-            + severity_counts["MEDIUM"] * 5
-            + severity_counts["LOW"] * 1
-        )
 
-        # Normalize to 0-100 security score (higher = more secure)
-        max_score = max(total * 40, 1)
-        security_score = max(0, min(100, 100 - int((risk_score / max_score) * 100)))
+        # Calculate CVSS-weighted risk score using base metric approximation
+        # Each finding maps its category to a CVSS v3.1 base score range
+        cvss_scores: list[float] = []
+        for f in findings:
+            explicit_cvss = f.get("cvssScore")
+            if explicit_cvss is not None and isinstance(explicit_cvss, (int, float)):
+                cvss_scores.append(float(explicit_cvss))
+            else:
+                cvss_scores.append(self._estimate_cvss(f))
+
+        # Aggregate risk: average CVSS * finding-count factor (capped)
+        avg_cvss = sum(cvss_scores) / max(len(cvss_scores), 1)
+        # risk_score: 0-100 scale reflecting overall risk
+        count_factor = min(total / 5, 3.0)  # more findings amplify risk, cap at 3x
+        risk_score = min(100, round(avg_cvss * 10 * max(count_factor, 1.0)))
+
+        # security_score: inverse of risk (higher = more secure)
+        security_score = max(0, 100 - risk_score)
+
+        # Build CVSS distribution
+        cvss_distribution = {
+            "critical_9_10": len([s for s in cvss_scores if s >= 9.0]),
+            "high_7_9": len([s for s in cvss_scores if 7.0 <= s < 9.0]),
+            "medium_4_7": len([s for s in cvss_scores if 4.0 <= s < 7.0]),
+            "low_0_4": len([s for s in cvss_scores if 0.1 <= s < 4.0]),
+            "info": len([s for s in cvss_scores if s < 0.1]),
+        }
+
+        return {
+            "total_findings": total,
+            "severity_counts": severity_counts,
+            "risk_score": risk_score,
+            "security_score": security_score,
+            "avg_cvss": round(avg_cvss, 1),
+            "max_cvss": round(max(cvss_scores) if cvss_scores else 0.0, 1),
+            "cvss_distribution": cvss_distribution,
+        }
+
+    @staticmethod
+    def _estimate_cvss(finding: dict[str, Any]) -> float:
+        """
+        Estimate a CVSS v3.1 base score from finding category and severity.
+
+        Uses OWASP/NVD reference ranges for common vulnerability categories.
+        CVSS v3.1 Base Score = f(AV, AC, PR, UI, S, C, I, A)
+        """
+        category = finding.get("category", "OTHER")
+        severity = finding.get("severity", "INFO")
+
+        # Category → representative CVSS base score (based on typical NVD data)
+        CATEGORY_CVSS: dict[str, float] = {
+            "SQL_INJECTION":       9.8,   # AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+            "COMMAND_INJECTION":   9.8,   # AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+            "RFI":                 9.1,   # AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N
+            "SSRF":                8.6,   # AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N
+            "XSS_STORED":         8.1,   # AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N
+            "LFI":                 7.5,   # AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N
+            "PATH_TRAVERSAL":      7.5,   # AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N
+            "IDOR":                7.5,   # AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N
+            "XSS_REFLECTED":       6.1,   # AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N
+            "CORS_MISCONFIG":      5.3,   # AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N
+            "CSRF":                4.3,   # AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N
+            "OPEN_REDIRECT":       4.3,   # AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N
+            "SSL_TLS":             5.3,   # AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N
+            "CERT_ISSUE":          4.8,   # AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N
+            "SECURITY_HEADERS":    3.7,   # AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N
+            "COOKIE_SECURITY":     3.5,   # AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N
+            "HTTP_METHODS":        3.1,   # AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N
+            "INFO_DISCLOSURE":     5.3,   # AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N
+            "DIRECTORY_LISTING":   5.3,   # AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N
+            "SENSITIVE_FILE":      5.3,   # AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N
+            "OUTDATED_SOFTWARE":   5.6,   # varies, median NVD
+            "DEFAULT_CREDENTIALS": 9.8,   # AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+            "EMAIL_SECURITY":      3.7,   # AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N
+            "WAF_DETECTED":        0.0,   # informational
+            "OTHER":               3.0,
+        }
+
+        # Use category-specific CVSS if available, else fall back to severity
+        cvss = CATEGORY_CVSS.get(category)
+        if cvss is not None:
+            return cvss
+
+        SEVERITY_CVSS: dict[str, float] = {
+            "CRITICAL": 9.5,
+            "HIGH": 7.5,
+            "MEDIUM": 5.0,
+            "LOW": 2.5,
+            "INFO": 0.0,
+        }
+        return SEVERITY_CVSS.get(severity, 0.0)
 
         return {
             "total_findings": total,

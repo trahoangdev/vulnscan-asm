@@ -13,6 +13,7 @@ from scanner.modules.waf_detector import WafDetector
 from scanner.modules.recon_module import ReconModule
 from scanner.modules.default_creds import DefaultCredsChecker
 from scanner.modules.api_discovery import ApiDiscovery
+from scanner.modules.api_security import ApiSecurity
 
 __all__ = [
     "PortScanner",
@@ -28,6 +29,7 @@ __all__ = [
     "ReconModule",
     "DefaultCredsChecker",
     "ApiDiscovery",
+    "ApiSecurity",
 ]
 
 # Module registry keyed by module name
@@ -45,4 +47,5 @@ MODULE_REGISTRY = {
     "recon_module": ReconModule,
     "default_creds_checker": DefaultCredsChecker,
     "api_discovery": ApiDiscovery,
+    "api_security": ApiSecurity,
 }

@@ -4,7 +4,7 @@
 
 ### Vulnerability Scanner & Attack Surface Management Platform
 
-Nền tảng quản lý bề mặt tấn công và quét lỗ hổng bảo mật toàn diện, giúp doanh nghiệp SME chủ động phát hiện và khắc phục rủi ro an ninh mạng.
+A comprehensive attack surface management and vulnerability scanning platform designed to help SME businesses proactively discover and remediate cybersecurity risks before they are exploited.
 
 [![CI](https://github.com/your-username/vulnscan-asm/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/vulnscan-asm/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -13,7 +13,7 @@ Nền tảng quản lý bề mặt tấn công và quét lỗ hổng bảo mật
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://postgresql.org)
 
-[English](README.en.md)
+[Vietnamese / Tiếng Việt](README.md)
 
 </div>
 
@@ -21,12 +21,12 @@ Nền tảng quản lý bề mặt tấn công và quét lỗ hổng bảo mật
 
 ## ✨ Highlights
 
-- **Discover** — Tự động phát hiện tất cả tài sản số (subdomains, APIs, services) từ domain gốc
-- **Scan** — 15 scanner modules: port scan, SSL analysis, CVE matching, API security, IDOR detection, ...
-- **Prioritize** — Risk scoring CVSS v3.1, phân loại Critical → Info, đề xuất thứ tự fix
-- **Report** — Báo cáo compliance-ready (PDF/CSV) cho cả kỹ thuật và management
-- **Monitor** — Giám sát liên tục, real-time alerts qua Email, Slack, Webhook
-- **Billing** — Tích hợp Polar.sh cho subscription management
+- **Discover** — Automatically detect all digital assets (subdomains, APIs, services) from a root domain
+- **Scan** — 15 scanner modules: port scan, SSL analysis, CVE matching, API security, IDOR detection, and more
+- **Prioritize** — CVSS v3.1 risk scoring, categorization from Critical to Info, recommended fix order
+- **Report** — Compliance-ready reports (PDF/CSV) for both technical teams and management
+- **Monitor** — Continuous monitoring with real-time alerts via Email, Slack, and Webhooks
+- **Billing** — Integrated Polar.sh subscription management
 
 ---
 
@@ -50,7 +50,7 @@ Nền tảng quản lý bề mặt tấn công và quét lỗ hổng bảo mật
 | **API Server** | Node.js 20, Express 4, TypeScript, Prisma ORM, BullMQ, Zod, JWT, Socket.io |
 | **Scanner** | Python 3.11, Celery, nmap, httpx, dnspython, cryptography, BeautifulSoup |
 | **Database** | PostgreSQL 16 (primary), Redis 7 (cache + queue) |
-| **Storage** | S3-compatible (MinIO dev / AWS S3 prod) |
+| **Storage** | S3-compatible (MinIO for dev / AWS S3 for production) |
 | **Billing** | Polar.sh SDK |
 | **CI/CD** | GitHub Actions (lint, test, build, Storybook, Playwright E2E, Docker, security audit) |
 | **Container** | Docker, Docker Compose, Nginx reverse proxy |
@@ -69,7 +69,7 @@ vulnscan-asm/
 │   │   ├── lib/               # Utilities, API client, stores
 │   │   └── styles/            # Global CSS
 │   ├── e2e/                   # Playwright E2E tests
-│   ├── .storybook/            # Storybook config
+│   ├── .storybook/            # Storybook configuration
 │   └── playwright.config.ts
 │
 ├── server/                    # Express API server
@@ -79,10 +79,10 @@ vulnscan-asm/
 │   │   │   ├── assets/        #   Asset management
 │   │   │   ├── scans/         #   Scan orchestration
 │   │   │   ├── vulnerabilities/ # Vulnerability tracking
-│   │   │   ├── reports/       #   Report generation
-│   │   │   ├── billing/       #   Polar.sh subscription
+│   │   │   ├── reports/       #   Report generation (PDF/CSV)
+│   │   │   ├── billing/       #   Polar.sh subscription billing
 │   │   │   ├── integrations/  #   Slack, Webhook, Email
-│   │   │   ├── organizations/ #   Multi-tenant orgs
+│   │   │   ├── organizations/ #   Multi-tenant organizations
 │   │   │   └── ...            #   alerts, dashboard, users, etc.
 │   │   ├── middleware/        # Auth, rate-limit, validation
 │   │   ├── utils/             # Logger, helpers
@@ -107,7 +107,7 @@ vulnscan-asm/
 │   │   │   ├── default_creds.py
 │   │   │   ├── api_discovery.py
 │   │   │   └── api_security.py  # IDOR, broken auth, rate limit, data exposure
-│   │   └── engine.py          # Orchestrator + CVSS scoring
+│   │   └── engine.py          # Orchestrator + CVSS v3.1 scoring
 │   ├── tests/                 # pytest test suite
 │   └── requirements.txt
 │
@@ -115,8 +115,9 @@ vulnscan-asm/
 ├── docker/                    # Dockerfiles (server, client, scanner)
 ├── docs/                      # Full project documentation (8 docs)
 ├── .github/workflows/ci.yml   # CI/CD pipeline (9 jobs)
-├── docker-compose.yml         # Dev infrastructure
-├── .env.example               # Environment template
+├── docker-compose.yml         # Development infrastructure
+├── .env.example               # Environment variables template
+├── CONTRIBUTING.md            # Contribution guidelines
 └── LICENSE                    # MIT + scanner usage terms
 ```
 
@@ -130,7 +131,7 @@ vulnscan-asm/
 |---|---|---|
 | Node.js | 20+ | ✅ |
 | Python | 3.11+ | ✅ |
-| Docker & Compose | Latest | ✅ |
+| Docker & Docker Compose | Latest | ✅ |
 | Git | Latest | ✅ |
 
 ### 1. Clone & Configure
@@ -160,7 +161,7 @@ docker compose up -d
 ```bash
 cd server
 npm install
-npx prisma generate          # Generate Prisma client
+npx prisma generate          # Generate Prisma client types
 npx prisma migrate dev        # Run database migrations
 npx prisma db seed            # Seed initial data (optional)
 npm run dev                   # → http://localhost:4000
@@ -222,7 +223,7 @@ pytest tests/ -v --cov=scanner --cov-report=term-missing   # With coverage
 
 ```bash
 cd client
-npm test                      # Unit tests
+npm test                      # Unit tests (Vitest)
 npm run e2e                   # Playwright E2E (all browsers)
 npm run e2e:ui                # Playwright interactive UI mode
 npm run e2e:report            # View last test report
@@ -248,26 +249,27 @@ cd client && npm run type-check    # Client TypeScript
 ## 🔌 API Overview
 
 - **Base URL:** `http://localhost:4000/v1`
-- **Auth:** Bearer JWT token or API Key (`X-API-Key`)
+- **Authentication:** Bearer JWT token or API Key (`X-API-Key` header)
 - **Format:** JSON request & response
+- **Rate Limiting:** Configurable per plan (100–1000 req/min)
 
 ### Key Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/auth/register` | Register new account |
-| `POST` | `/auth/login` | Login (returns JWT) |
+| `POST` | `/auth/register` | Register a new account |
+| `POST` | `/auth/login` | Login (returns access + refresh JWT) |
 | `GET` | `/targets` | List scan targets |
-| `POST` | `/targets` | Add new target |
-| `POST` | `/scans` | Start a new scan |
+| `POST` | `/targets` | Add a new target (with domain verification) |
+| `POST` | `/scans` | Start a new vulnerability scan |
 | `GET` | `/scans/:id` | Get scan status & results |
-| `GET` | `/vulnerabilities` | List vulnerabilities |
+| `GET` | `/vulnerabilities` | List discovered vulnerabilities |
 | `GET` | `/assets` | List discovered assets |
-| `GET` | `/dashboard/stats` | Dashboard statistics |
-| `POST` | `/reports/generate` | Generate PDF/CSV report |
-| `GET` | `/organizations/members` | List org members |
-| `POST` | `/integrations/slack/test` | Test Slack webhook |
-| `POST` | `/billing/checkout` | Create Polar.sh checkout |
+| `GET` | `/dashboard/stats` | Dashboard statistics & metrics |
+| `POST` | `/reports/generate` | Generate PDF/CSV compliance report |
+| `GET` | `/organizations/members` | List organization members |
+| `POST` | `/integrations/slack/test` | Test Slack webhook connection |
+| `POST` | `/billing/checkout` | Create Polar.sh subscription checkout |
 
 > Full API documentation: [`docs/06-api-design.md`](docs/06-api-design.md)
 
@@ -275,24 +277,24 @@ cd client && npm run type-check    # Client TypeScript
 
 ## 🔍 Scanner Modules
 
-| # | Module | Description | Profile |
+| # | Module | Description | Scan Profile |
 |---|---|---|---|
 | 1 | **Port Scanner** | TCP/UDP port discovery via nmap | Quick, Standard, Deep |
 | 2 | **DNS Enumerator** | DNS records, zone transfer detection | Quick, Standard, Deep |
-| 3 | **SSL Analyzer** | Certificate validation, cipher analysis | Quick, Standard, Deep |
+| 3 | **SSL Analyzer** | Certificate validation, cipher suite analysis | Quick, Standard, Deep |
 | 4 | **Web Crawler** | Sitemap discovery, link analysis | Standard, Deep |
-| 5 | **Tech Detector** | Technology fingerprinting (frameworks, CMS) | Standard, Deep |
+| 5 | **Tech Detector** | Technology fingerprinting (frameworks, CMS, libraries) | Standard, Deep |
 | 6 | **Vuln Checker** | Known vulnerability pattern matching | Standard, Deep |
-| 7 | **Subdomain Takeover** | Dangling DNS, unclaimed services | Standard, Deep |
+| 7 | **Subdomain Takeover** | Dangling DNS records, unclaimed services | Standard, Deep |
 | 8 | **Admin Detector** | Admin panel & sensitive path discovery | Standard, Deep |
 | 9 | **NVD CVE Matcher** | CVE database correlation (NVD/NIST) | Standard, Deep |
 | 10 | **WAF Detector** | Web Application Firewall identification | Standard, Deep |
 | 11 | **Recon Module** | OSINT, WHOIS, metadata collection | Deep |
 | 12 | **Default Creds** | Default credential checking | Deep |
 | 13 | **API Discovery** | REST/GraphQL endpoint enumeration | Deep |
-| 14 | **API Security** | IDOR, broken auth, rate limiting, data exposure | Deep |
+| 14 | **API Security** | IDOR, broken auth, rate limiting, data exposure analysis | Deep |
 
-**Risk Scoring:** CVSS v3.1 base score estimation across 26 vulnerability categories.
+**Risk Scoring:** Automated CVSS v3.1 base score estimation across 26 vulnerability categories.
 
 ---
 
@@ -307,27 +309,27 @@ NODE_ENV=development
 APP_URL=http://localhost:3000
 API_URL=http://localhost:4000
 
-# Database
+# Database (PostgreSQL)
 DATABASE_URL=postgresql://vulnscan:vulnscan_password@localhost:5433/vulnscan_db
 
 # Redis
 REDIS_URL=redis://localhost:6379
 
-# JWT
+# JWT Authentication
 JWT_ACCESS_SECRET=your-access-secret-key-min-32-chars
 JWT_REFRESH_SECRET=your-refresh-secret-key-min-32-chars
 
-# S3 / MinIO
+# S3 / MinIO (Object Storage)
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_BUCKET=vulnscan-reports
 
-# Email (MailHog for dev)
+# Email (MailHog for development)
 SMTP_HOST=localhost
 SMTP_PORT=1025
 
-# Scanner
+# Scanner (Celery)
 CELERY_BROKER_URL=redis://localhost:6379/1
 SCANNER_MAX_CONCURRENT=3
 SCANNER_TIMEOUT=3600
@@ -337,7 +339,7 @@ POLAR_ACCESS_TOKEN=polar_oat_xxxxx
 POLAR_WEBHOOK_SECRET=whsec_xxxxx
 POLAR_SERVER=sandbox
 
-# Optional
+# Optional External APIs
 # SHODAN_API_KEY=
 # NVD_API_KEY=
 # SENTRY_DSN=
@@ -345,7 +347,7 @@ POLAR_SERVER=sandbox
 
 </details>
 
-> See [`.env.example`](.env.example) for the complete template with all options.
+> See [`.env.example`](.env.example) for the complete template with all configuration options.
 
 ---
 
@@ -354,80 +356,82 @@ POLAR_SERVER=sandbox
 ### Docker Production Build
 
 ```bash
-# Build all images
+# Build individual images
 docker build -f docker/Dockerfile.server -t vulnscan-asm/server .
 docker build -f docker/Dockerfile.client -t vulnscan-asm/client .
 docker build -f docker/Dockerfile.scanner -t vulnscan-asm/scanner .
 
-# Or use docker compose
+# Or use docker compose for full stack
 docker compose up -d
 ```
 
 ### CI/CD Pipeline
 
-The GitHub Actions pipeline ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs **9 jobs**:
+The GitHub Actions pipeline ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs **9 automated jobs**:
 
 | Job | Description |
 |---|---|
 | **Lint** | ESLint + TypeScript type checking (server & client) |
 | **Test Server** | 83 Jest tests with PostgreSQL + Redis services |
-| **Test Scanner** | pytest with coverage report |
-| **Build Server** | TypeScript compilation |
+| **Test Scanner** | pytest with coverage reporting |
+| **Build Server** | TypeScript compilation to JavaScript |
 | **Build Client** | Next.js production build |
 | **Storybook** | Storybook static build + artifact upload |
 | **E2E** | Playwright end-to-end tests (Chromium) |
-| **Docker** | Docker image build validation (main branch) |
-| **Security** | npm audit + pip-audit dependency scanning |
+| **Docker** | Docker image build validation (main branch only) |
+| **Security** | npm audit + pip-audit dependency vulnerability scanning |
 
 ---
 
 ## 📖 Documentation
 
+Detailed documentation is available in the [`docs/`](docs/) directory:
+
 | Document | Description |
 |---|---|
 | [`01-project-overview.md`](docs/01-project-overview.md) | Vision, problem statement, business model, KPIs |
 | [`02-system-architecture.md`](docs/02-system-architecture.md) | Architecture diagrams, data flow, scaling strategy |
-| [`03-feature-specifications.md`](docs/03-feature-specifications.md) | 11 feature groups with detailed specs |
+| [`03-feature-specifications.md`](docs/03-feature-specifications.md) | 11 feature groups with detailed specifications |
 | [`04-tech-stack.md`](docs/04-tech-stack.md) | Technology choices, folder structures, justifications |
 | [`05-database-schema.md`](docs/05-database-schema.md) | Prisma schema, ERD, table descriptions |
-| [`06-api-design.md`](docs/06-api-design.md) | REST API endpoints, auth, pagination, WebSocket events |
+| [`06-api-design.md`](docs/06-api-design.md) | REST API endpoints, authentication, pagination, WebSocket events |
 | [`07-development-roadmap.md`](docs/07-development-roadmap.md) | 4-phase delivery plan with timeline |
-| [`08-security-legal.md`](docs/08-security-legal.md) | Security measures, legal compliance, responsible use |
+| [`08-security-legal.md`](docs/08-security-legal.md) | Security measures, legal compliance, responsible use policy |
 
 ---
 
 ## 🤝 Contributing
 
-Chào mừng mọi đóng góp! Vui lòng đọc [CONTRIBUTING.md](CONTRIBUTING.md) để biết chi tiết về:
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
 
-- Thiết lập môi trường phát triển
+- Development setup and workflow
 - Coding standards (TypeScript & Python)
-- Quy ước commit message
-- Quy trình Pull Request
-- Hướng dẫn thêm scanner module mới
-- Báo cáo lỗ hổng bảo mật
+- Commit message convention
+- Pull request process
+- How to add new scanner modules
+- Security vulnerability reporting
 
-### Bắt đầu nhanh
+### Quick Steps
 
-1. Fork repository
-2. Tạo feature branch (`git checkout -b feat/amazing-feature`)
-3. Viết code + tests theo [coding standards](CONTRIBUTING.md#-coding-standards)
-4. Commit theo [Conventional Commits](https://www.conventionalcommits.org): `git commit -m 'feat: add amazing feature'`
-5. Push lên branch (`git push origin feat/amazing-feature`)
-6. Mở Pull Request
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feat/amazing-feature`)
+3. Write code + tests following our [coding standards](CONTRIBUTING.md#-coding-standards)
+4. Commit using [Conventional Commits](https://www.conventionalcommits.org): `git commit -m 'feat: add amazing feature'`
+5. Push to the branch (`git push origin feat/amazing-feature`)
+6. Open a Pull Request
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** with additional terms for vulnerability scanner usage — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License** with additional terms governing vulnerability scanner usage — see the [LICENSE](LICENSE) file for full details.
 
-> **⚠️ Important:** This software must only be used to scan systems you own or have explicit written authorization to test. Unauthorized scanning may violate applicable laws.
+> **⚠️ Important:** This software must only be used to scan systems you own or have explicit written authorization to test. Unauthorized scanning may violate applicable laws including the CFAA, EU Computer Misuse Act, and Vietnam's Cybersecurity Law 2018.
 
 ---
 
 <div align="center">
 
-**VulnScan ASM** — *Biết rõ bề mặt tấn công · Phát hiện lỗ hổng tự động · Ưu tiên rủi ro thông minh*
+**VulnScan ASM** — *Know your attack surface · Detect vulnerabilities automatically · Prioritize risks intelligently*
 
 </div>

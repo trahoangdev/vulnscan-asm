@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { jiraService } from './jira.service';
+import { slackService } from './slack.service';
 import { ApiResponse } from '../../utils/ApiResponse';
 
 export class IntegrationsController {
@@ -36,6 +37,30 @@ export class IntegrationsController {
         findingId,
       );
       return ApiResponse.success(res, result, 201);
+    } catch (error) { next(error); }
+  }
+
+  // ── Slack integration ───────────────────────────────────────────────────
+
+  async slackTestConnection(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { webhookUrl } = req.body;
+      if (!webhookUrl || !webhookUrl.startsWith('https://hooks.slack.com/')) {
+        return ApiResponse.error(res, 400, 'INVALID_WEBHOOK', 'Invalid Slack webhook URL');
+      }
+      const result = await slackService.testConnection(webhookUrl);
+      return ApiResponse.success(res, result);
+    } catch (error) { next(error); }
+  }
+
+  async slackSendMessage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { webhookUrl, eventType, data } = req.body;
+      if (!webhookUrl || !webhookUrl.startsWith('https://hooks.slack.com/')) {
+        return ApiResponse.error(res, 400, 'INVALID_WEBHOOK', 'Invalid Slack webhook URL');
+      }
+      await slackService.notifyOrg((req as any).user.orgId, eventType, data);
+      return ApiResponse.success(res, { sent: true });
     } catch (error) { next(error); }
   }
 }

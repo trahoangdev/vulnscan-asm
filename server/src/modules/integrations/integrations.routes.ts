@@ -12,4 +12,8 @@ router.post('/jira/projects', integrationsController.jiraGetProjects);
 router.post('/jira/issue-types', integrationsController.jiraGetIssueTypes);
 router.post('/jira/issues', integrationsController.jiraCreateIssue);
 
+// Slack integration
+router.post('/slack/test', integrationsController.slackTestConnection);
+router.post('/slack/send', integrationsController.slackSendMessage);
+
 export default router;

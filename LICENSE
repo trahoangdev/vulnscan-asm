@@ -1,0 +1,51 @@
+MIT License
+
+Copyright (c) 2026 VulnScan ASM
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+ADDITIONAL TERMS — VULNERABILITY SCANNER USAGE
+
+This software is designed to scan and assess the security posture of systems
+that the user owns or has explicit written authorization to test. By using
+this software, you agree to the following:
+
+1. AUTHORIZATION REQUIRED — You must have explicit, written permission from the
+   owner of any system, network, or domain before performing any scan or
+   security assessment. Unauthorized scanning may violate local, state, national,
+   or international laws including but not limited to the Computer Fraud and
+   Abuse Act (CFAA), EU Computer Misuse Act, and Vietnam's Cybersecurity Law 2018.
+
+2. COMPLIANCE — You are solely responsible for ensuring your use of this software
+   complies with all applicable laws and regulations in your jurisdiction.
+
+3. NO LIABILITY FOR MISUSE — The authors and copyright holders shall not be held
+   liable for any damages, legal consequences, or claims arising from
+   unauthorized or illegal use of this software.
+
+4. RESPONSIBLE DISCLOSURE — If vulnerabilities are discovered using this software,
+   you are encouraged to follow responsible disclosure practices and report
+   findings to the affected system owner in a timely manner.
+
+5. DATA HANDLING — Scan results may contain sensitive security information.
+   You are responsible for securing, handling, and disposing of scan data
+   in accordance with applicable data protection regulations (e.g., GDPR,
+   Vietnam's Law on Cybersecurity).
